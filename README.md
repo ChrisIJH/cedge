@@ -28,3 +28,4 @@ pytest
 ## Design decisions
 
 Architecture and migration notes live in `docs/`.
+
