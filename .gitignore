@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.venv/
+venv/
+.vscode/
+*.log
+nohup.out
+.DS_Store
+
+# 데이터 파일은 기본 제외, 테스트 fixture만 예외
+*.pkl
+!tests/**/fixtures/*.pkl
