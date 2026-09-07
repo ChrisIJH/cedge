@@ -47,9 +47,10 @@ jobs:
       - name: Compute image tags
         id: meta
         run: |
-          TAGS="ghcr.io/chrisijh/cedge-portfolio-performance:${{ github.sha }}"
+          IMAGE="ghcr.io/chrisijh/cedge-${{ matrix.service }}"
+          TAGS="$IMAGE:${{ github.sha }}"
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            TAGS="$TAGS,ghcr.io/chrisijh/cedge-portfolio-performance:latest"
+            TAGS="$TAGS,$IMAGE:latest"
           fi
           echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
 
@@ -57,6 +58,6 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: services/portfolio_performance/Dockerfile
+          file: services/${{ matrix.service }}/Dockerfile
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}
