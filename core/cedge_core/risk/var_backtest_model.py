@@ -8,7 +8,7 @@ from scipy import stats
 
 @dataclass(frozen=True)
 class BacktestConfig:
-    alpha: float = 0.05     # Var confidence level
+    alpha: float = 0.05     # VaR level
     crit_uc: float=3.841    # chi2(1) 95%
     cirt_cc: float=5.99     # chi2(2) 95%
 
@@ -35,15 +35,6 @@ def kupiec_uc(breaches: np.ndarray, alpha: float=0.05) -> Dict[str, object]:
     N = int(breaches.sum())
 
     p_hat = N / T if T else 0.0
-
-    # if N == 0:
-    #     lr = -2.0 * (T * np.log(1 - alpha))
-    # elif N == T:
-    #     lr = -2.0 * (T * np.log(alpha))
-    # else:
-    #     ll_null = N * np.log(alpha) + (T - N) * np.log(1 - alpha)
-    #     ll_alt = N * np.log(p_hat) + (T - N) * np.log(1 - p_hat)
-    #     lr = -2.0 * (ll_null - ll_alt)
 
     lr = lruc(N, T, alpha)
 
