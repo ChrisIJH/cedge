@@ -15,6 +15,7 @@ ALPHA CONVENTION
 Run locally:
     python services/risk/app.py
 """
+import os
 import math
 
 import numpy as np
@@ -23,6 +24,8 @@ from flask import Flask, jsonify, request
 from cedge_core.risk.fhs_var import rolling_fhs_es, rolling_fhs_var
 from cedge_core.risk.param_var import rolling_parametric_var_confidence
 from cedge_core.risk.var_backtest_model import run_backtest
+from cedge_core.risk.var_es_model import full_backtest
+
 
 import pandas as pd
 
@@ -177,6 +180,77 @@ def var_backtest():
     result["n_observations"] = int(valid.sum())
     return jsonify(result)
 
+_FULL_BACKTEST_METHODS = ['parametric', 'historic']
+
+def _cell_to_json(cell):
+    """One full_backtest() cell -> JSON-safe dict.
+
+    kupiec/christoffersen/acerbi are already native Python types (float/int/
+    bool)
+    """
+    return {
+        "method": cell["method"],
+        "alpha": cell["alpha"],
+        "eval_idx": [int(i) for i in cell["eval_idx"]],
+        "r_eval": _to_json_safe(cell["r_eval"]),
+        "var": _to_json_safe(cell["var"]),
+        "es": _to_json_safe(cell["es"]),
+        "breaches": [int(b) for b in cell["breaches"]],
+        "kupiec": cell["kupiec"],
+        "christoffersen": cell["christoffersen"],
+        "acerbi": cell["acerbi"],
+        "avg_pred_es": cell["avg_pred_es"],
+        "avg_real_loss": cell["avg_real_loss"],
+    }
+
+@app.route("/api/full_backtest", methods=['POST'])
+def full_backtest_route():
+    """All method x confidence-level cells in one call.
+
+    A dashboard comparing parametric/historic VaR at 95%/99% needs four
+    cells; calling /api/var_es + /api/var_backtest per cell would be eight
+    round trips. This wraps cedge_core.risk.var_es_model.full_backtest(),
+    which already computes the grid in one pass, and reshapes its
+    {(method, alpha): cell} dict into a JSON array — object keys can't be
+    tuples.
+    """
+    payload = request.get_json(silent=True)
+    if payload is None:
+        raise BadRequest("request body must be JSON")
+
+    returns = _require_returns(payload)
+    window = _require_window(payload, len(returns))
+
+    levels = payload.get("levels", [0.05, 0.01])
+    if not isinstance(levels, list) or not levels:
+        raise BadRequest("'levels' must be a non-empty array of numbers in (0, 1)")
+    for level in levels:
+        if not isinstance(level, (int, float)) or not 0 < level < 1:
+            raise BadRequest(f"each 'levels' entry must be in (0, 1), got {level!r}")
+
+    methods = payload.get("methods", list(_FULL_BACKTEST_METHODS))
+    if not isinstance(methods, list) or not methods:
+        raise BadRequest("'methods' must be a non-empty array")
+    unknown = set(methods) - set(_FULL_BACKTEST_METHODS)
+    if unknown:
+        raise BadRequest(
+            f"unknown method(s) {sorted(unknown)}; must be one of {_FULL_BACKTEST_METHODS}"
+        )
+
+    n_boot = payload.get("n_boot", 3000)
+    if not isinstance(n_boot, int) or n_boot < 100:
+        raise BadRequest("'n_boot' must be an integer >= 100")
+
+    result = full_backtest(
+        returns, window=window, levels=tuple(levels),
+        methods=tuple(methods), n_boot=n_boot,
+    )
+
+    return jsonify({
+        "cells": [_cell_to_json(cell) for cell in result.values()],
+        "convention": VAR_CONVENTION,
+    })
+
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000)
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "8000")))

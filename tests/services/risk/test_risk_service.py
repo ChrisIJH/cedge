@@ -40,6 +40,12 @@ def returns():
     rng = np.random.default_rng(42)
     return rng.normal(0, 0.01, 300).round(6).tolist()
 
+@pytest.fixture
+def fat_tail_returns():
+    """Student-t(4) — real fat tails"""
+    rng = np.random.default_rng(42)
+    return rng.standard_t(4, 500).tolist()
+
 
 def test_healthz(client):
     response = client.get("/healthz")
@@ -126,3 +132,49 @@ def test_backtest_rejects_length_mismatch(client):
     })
     assert response.status_code == 400
     assert "length" in response.get_json()["error"]
+
+
+def test_full_backtest_returns_all_requested_cells(client, fat_tail_returns):
+    response = client.post("/api/full_backtest", json={
+        "returns": fat_tail_returns, "window": 100,
+        "levels": [0.05, 0.01], "methods": ["parametric", "historic"],
+    })
+    assert response.status_code == 200
+    cells = response.get_json()["cells"]
+    assert len(cells) == 4
+    got = {(c["method"], c["alpha"]) for c in cells}
+    assert got == {("parametric", 0.05), ("parametric", 0.01),
+                   ("historic", 0.05), ("historic", 0.01)}
+    for cell in cells:
+        assert len(cell["var"]) == len(cell["es"]) == len(cell["breaches"]) == 400
+
+
+def test_full_backtest_defaults_cover_both_methods_and_levels(client, fat_tail_returns):
+    response = client.post("/api/full_backtest", json={
+        "returns": fat_tail_returns, "window": 100,
+    })
+    assert len(response.get_json()["cells"]) == 4
+
+
+def test_full_backtest_parametric_underestimates_fat_tail_risk(client, fat_tail_returns):
+    """The whole point of offering both methods: at a deep confidence level,
+    parametric (normal-distribution) VaR should reject more readily than
+    historic (empirical-quantile) VaR on fat-tailed data."""
+    response = client.post("/api/full_backtest", json={
+        "returns": fat_tail_returns, "window": 100, "levels": [0.01],
+    })
+    cells = {c["method"]: c for c in response.get_json()["cells"]}
+    assert cells["parametric"]["kupiec"]["reject"] is True
+    assert cells["historic"]["kupiec"]["reject"] is False
+
+
+@pytest.mark.parametrize("payload,fragment", [
+    ({"returns": [0.01] * 200, "window": 100, "levels": []}, "'levels'"),
+    ({"returns": [0.01] * 200, "window": 100, "levels": [1.5]}, "'levels'"),
+    ({"returns": [0.01] * 200, "window": 100, "methods": ["bogus"]}, "unknown method"),
+    ({"returns": [0.01] * 200, "window": 100, "n_boot": 10}, "'n_boot'"),
+])
+def test_full_backtest_invalid_input_returns_400(client, payload, fragment):
+    response = client.post("/api/full_backtest", json=payload)
+    assert response.status_code == 400
+    assert fragment in response.get_json()["error"]
