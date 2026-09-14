@@ -84,7 +84,7 @@ def build_performance(
         calc_return_stats(short_return, 'Short Leg'),
     ]
 
-    spy_df = repo.get_daily_prices(['SPY'], start_date, end_date, 'etf')
+    spy_df = repo.get_daily_prices(['SPY'], start_date, end_date )
     if not spy_df.empty:
         spy_pivot = spy_df.pivot_table(index='date', columns='ticker', values='adj_close_price', aggfunc='last')
         spy_ret = spy_pivot['SPY'].pct_change().dropna()

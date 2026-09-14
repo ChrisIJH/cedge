@@ -32,8 +32,7 @@ class FakePriceRepository:
     def __init__(self, prices_by_ticker: dict[str, pd.Series]):
         self._prices_by_ticker = prices_by_ticker
 
-    def get_daily_prices(self, tickers: list[str], start_date: str, end_date: str,
-                          instrument_type: str = 'stock') -> pd.DataFrame:
+    def get_daily_prices(self, tickers: list[str], start_date: str, end_date: str) -> pd.DataFrame:
         rows = []
         for ticker in tickers:
             series = self._prices_by_ticker.get(ticker)
@@ -62,10 +61,8 @@ class TestBuildPerformanceWithFakeRepo:
         assert strategy_names == {'L/S Portfolio', 'Long Leg', 'Short Leg'}
 
     def test_includes_spy_when_available(self):
-        """
-        Confirms build_performance's internal SPY lookup passes instrument_type='etf'
-        end-to-end (via the fake) and wires a non-empty SPY series into the result.
-        """
+        """build_performance's internal SPY lookup finds the SPY series and
+        wires it into the result whenever the repo has it."""
         dates = pd.date_range("2024-01-01", periods=4, freq="B")
         long_px = pd.Series([100.0, 101.0, 102.0, 103.0], index=dates)
         short_px = pd.Series([50.0, 49.5, 49.0, 48.5], index=dates)
