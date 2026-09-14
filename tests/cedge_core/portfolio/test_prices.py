@@ -27,22 +27,18 @@ class TestGetDailyPrices:
             baseline["raw_aapl_msft"].reset_index(drop=True),
         )
 
-    def test_default_instrument_type_excludes_spy(self, baseline):
-        """
-        Default instrument_type='stock' excludes SPY (stored as instrument_type='etf'
-        in this DB) — this is the baseline/default behavior when no instrument_type
-        is passed. build_performance() explicitly passes 'etf' for its SPY lookup
-        (next task), so this default-empty result is expected only for this direct call.
-        """
-        result = get_daily_prices(["SPY"], "2025-01-01", "2025-06-30")
-        assert result.empty
-        assert baseline["raw_spy"].empty
-
     def test_instrument_type_etf_returns_spy(self):
-        result = get_daily_prices(["SPY"], "2025-01-01", "2025-06-30", "etf")
+        result = get_daily_prices(["SPY"], "2025-01-01", "2025-06-30" )
         assert not result.empty
         assert set(result["ticker"].unique()) == {"SPY"}
 
+    def test_etf_tickers_are_included(self):
+        """Regression test for #10 — SPY (stored as instrument_type='etf')
+        must come back from a plain call with no type override, since a
+        long/short book's ticker list can mix stocks and ETFs."""
+        result = get_daily_prices(["SPY"], "2025-01-01", "2025-06-30")
+        assert not result.empty
+        assert set(result["ticker"].unique()) == {"SPY"}
 
 class TestSqlPriceRepository:
     def test_implements_price_repository_protocol(self):

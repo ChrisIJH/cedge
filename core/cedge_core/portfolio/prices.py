@@ -41,8 +41,10 @@ from cedge_core.db import ch_engine
 
 from typing import Protocol
 class PriceRepository(Protocol):
-    def get_daily_prices(self, tickers: list[str], start_date: str, end_date: str,
-                          instrument_type: str = 'stock') -> pd.DataFrame:
+    def get_daily_prices(self, 
+                         tickers: list[str], 
+                         start_date: str, 
+                         end_date: str) -> pd.DataFrame:
         ...
 
 
@@ -53,7 +55,7 @@ class SqlPriceRepository:
     def get_daily_prices(self, tickers: list[str], 
                          start_date: str,
                          end_date: str,
-                         instrument_type: str = 'stock') -> pd.DataFrame:
+                         ) -> pd.DataFrame:
 
         engine = ch_engine()
         q = text("""
@@ -65,7 +67,7 @@ class SqlPriceRepository:
             where p.ticker in :tickers
                 and date(p.price_date) >= :start_date
                 and date(p.price_date) <= :end_date
-                and p.instrument_type = :inst_type
+                and p.instrument_type NOT IN ('factor','index','mutualfund')
                 and p.adj_close_price is not null
                 and c.is_trading_day=1
             order by p.ticker, date
@@ -76,14 +78,11 @@ class SqlPriceRepository:
                                params = {'tickers': list(tickers),
                                          'start_date': start_date,
                                          'end_date': end_date,
-                                         'inst_type': instrument_type,
                                          })
-
 
 _default_repo = SqlPriceRepository()
 
 def get_daily_prices(tickers: list[str], start_date: str, end_date: str,
                      instrument_type: str = 'stock',
                      repo: PriceRepository = _default_repo):
-    return repo.get_daily_prices(tickers, start_date,
-                                          end_date, instrument_type)
+    return repo.get_daily_prices(tickers, start_date, end_date)
