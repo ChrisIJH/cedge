@@ -3,21 +3,23 @@
 Simple returns. VaR/ES = positive loss. Look-ahead 차단: window [t-W:t] (t 제외)."""
 from __future__ import annotations
 
+from functools import reduce
+
 import numpy as np
 import pandas as pd
+from scipy import stats
 
 from cedge_core.db import ch_engine
+from cedge_core.estimators import realized_beta
 from cedge_core.marketdata.prices import load_prices_adjclose
 from cedge_core.marketdata.returns import to_returns
 from cedge_core.marketdata.weights import portfolio_returns
-from cedge_core.estimators import realized_beta
-from functools import reduce
-
-from scipy import stats
-
 from cedge_core.risk.var_backtest_model import (
-    kupiec_uc, christoffersen_cc, acerbi_szekely_z2
+    acerbi_szekely_z2,
+    christoffersen_cc,
+    kupiec_uc,
 )
+
 
 def parametric_var(w, alpha=0.05):
     mu, s = np.mean(w), np.std(w, ddof=1)
@@ -161,7 +163,7 @@ def multi_backtest(portfolios, *, window=252, n_boot=1500,
             "name": name,
             "period_start": pd.Timestamp(min(dates)).date().isoformat(),
             "period_end":   pd.Timestamp(max(dates)).date().isoformat(),
-            "obs":   int(len(rp_arr)),
+            "obs":   len(rp_arr),
             "gross": float(expo["gross"]),
             "net":   float(expo["net"]),
             "beta":  beta["beta"], "r2": beta["r2"],

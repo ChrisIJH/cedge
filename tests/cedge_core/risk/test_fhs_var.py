@@ -9,9 +9,13 @@ package) — NOT confidence level (contrast param_var.py).
 """
 import numpy as np
 import pytest
+from cedge_core.risk.fhs_var import (
+    ewma_filter,
+    fhs_quantile,
+    rolling_fhs_es,
+    rolling_fhs_var,
+)
 from scipy import stats
-
-from cedge_core.risk.fhs_var import ewma_filter, fhs_quantile, rolling_fhs_var, rolling_fhs_es
 
 
 class TestEWMAFilter:
@@ -27,7 +31,7 @@ class TestEWMAFilter:
             3.735952000000e-04,
             4.051794880000e-04,
         ])
-        sigma, z = ewma_filter(r, lam=lam, sigma2_init=sigma2_init)
+        sigma, _z = ewma_filter(r, lam=lam, sigma2_init=sigma2_init)
         assert np.allclose(sigma ** 2, EXPECTED_SIGMA2, rtol=1e-12), sigma ** 2
 
     def test_sigma2_init_required(self):

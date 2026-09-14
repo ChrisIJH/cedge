@@ -15,26 +15,23 @@ ALPHA CONVENTION
 Run locally:
     python services/risk/app.py
 """
-import os
 import math
+import os
 
 import numpy as np
-from flask import Flask, jsonify, request
-
+import pandas as pd
 from cedge_core.risk.fhs_var import rolling_fhs_es, rolling_fhs_var
 from cedge_core.risk.param_var import rolling_parametric_var_confidence
 from cedge_core.risk.var_backtest_model import run_backtest
 from cedge_core.risk.var_es_model import full_backtest
-
-
-import pandas as pd
+from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
 VAR_CONVENTION = "VaR/ES are positive loss numbers; larger = riskier"
 
 class BadRequest(Exception):
-    """"""
+    """A client-side input problem. Carries the message sent back as 400."""
 
 @app.errorhandler(BadRequest)
 def _handle_bad_request(exc):

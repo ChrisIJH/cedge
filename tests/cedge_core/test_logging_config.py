@@ -3,7 +3,6 @@ import logging
 import time
 
 import pytest
-
 from cedge_core.logging_config import (
     PerModuleDailyFileHandler,
     configure_logging,

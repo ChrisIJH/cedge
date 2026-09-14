@@ -3,21 +3,19 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-from scipy import stats
-
 from cedge_core.risk import var_es_model
 from cedge_core.risk.var_es_model import (
-    parametric_var,
-    parametric_es,
-    historic_var,
-    historic_es,
-    rolling_var_es,
+    _cell_summary,
     backtest_one,
     full_backtest,
-    _cell_summary,
+    historic_es,
+    historic_var,
     multi_backtest,
+    parametric_es,
+    parametric_var,
+    rolling_var_es,
 )
-
+from scipy import stats
 
 # ---------------------------------------------------------------------------
 # Point estimators (parametric / historic)

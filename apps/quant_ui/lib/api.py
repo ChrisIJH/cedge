@@ -9,7 +9,7 @@ cedge_core, open a database connection, or issue SQL.
 from __future__ import annotations
 
 import os
-from typing import Optional, Any, Dict
+from typing import Any, Dict, Optional
 
 import requests
 import streamlit as st

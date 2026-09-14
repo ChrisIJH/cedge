@@ -9,21 +9,19 @@ into something the risk service can score.
 Run locally:
     python services/marketdata/app.py
 """
-import os
 import math
+import os
 from typing import Optional
 
 import numpy as np
 import pandas as pd
-
-from flask import Flask, request, jsonify
-
 from cedge_core.db import ch_engine
 from cedge_core.estimators import realized_beta
 from cedge_core.marketdata.portfolios import SqlPortfolioRepository
 from cedge_core.marketdata.prices import load_prices_adjclose
 from cedge_core.marketdata.returns import to_returns
 from cedge_core.marketdata.weights import portfolio_returns
+from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 _portfolio_repo = SqlPortfolioRepository()
@@ -184,7 +182,7 @@ def returns():
     return jsonify({
         "dates": [str(d) for d in dates],
         "returns": _json_safe(series),
-        "n_observations": int(len(series)),
+        "n_observations": len(series),
         "gross": exposure["gross"],
         "net": exposure["net"],
         "beta": beta,

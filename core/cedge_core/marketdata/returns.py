@@ -4,9 +4,12 @@ cedge_core/marketdata/returns.py
 Functional Programming - no I/O
 """
 from __future__ import annotations
+
 from typing import Union
+
 import numpy as np
 import pandas as pd
+
 
 def to_returns(prices: Union[pd.DataFrame, pd.Series],
             method: str="simple",) -> Union[pd.DataFrame, pd.Series]:

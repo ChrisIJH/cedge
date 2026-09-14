@@ -13,16 +13,15 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-from scipy import stats
-
 from cedge_core.risk.param_var import (
-    normal_linear_var_confidence,
     normal_linear_es_confidence,
     normal_linear_es_confidence_WRONG,
+    normal_linear_var_confidence,
     portfolio_sigma,
     rolling_parametric_var_confidence,
     rolling_parametric_var_confidence_WRONG,
 )
+from scipy import stats
 
 
 def test_z_and_multiplier():

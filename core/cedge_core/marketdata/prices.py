@@ -7,9 +7,9 @@ from __future__ import annotations
 from typing import List
 
 import pandas as pd
-import numpy as np
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
+
 
 def load_prices_adjclose(
         engine: Engine,

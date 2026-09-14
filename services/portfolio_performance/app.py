@@ -16,9 +16,8 @@ Run locally:
 import json
 
 import pandas as pd
-from flask import Flask, jsonify, request
-
 from cedge_core.portfolio.performance import build_performance
+from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 

@@ -7,6 +7,7 @@ Sources:
   - compute_turnover: batch/build_optimizer_snapshot.py
 """
 from typing import Optional
+
 import pandas as pd
 
 
