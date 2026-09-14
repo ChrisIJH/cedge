@@ -26,6 +26,7 @@ where = ["core"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 markers = [
     "db: needs a live MySQL connection; excluded in CI, run locally",
 ]

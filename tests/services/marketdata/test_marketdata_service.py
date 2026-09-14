@@ -6,18 +6,10 @@ tests exercise the real endpoint with no database and stay in the CI subset.
 Anything that must actually read prices carries the `db` marker and is
 excluded from CI — CI has no MySQL to talk to.
 """
-import importlib.util
-import sys
-from pathlib import Path
 
 import pytest
 
-_APP_PATH = Path(__file__).resolve().parents[3] / "services" / "marketdata" / "app.py"
-_spec = importlib.util.spec_from_file_location("marketdata_service_app", _APP_PATH)
-_module = importlib.util.module_from_spec(_spec)
-sys.modules["marketdata_service_app"] = _module
-_spec.loader.exec_module(_module)
-
+from services.marketdata import app as _module
 
 @pytest.fixture
 def client():
