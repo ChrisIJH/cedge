@@ -1,7 +1,7 @@
 from __future__ import annotations
-import pytest
-import numpy as np
 
+import numpy as np
+import pytest
 from cedge_core.estimators import realized_beta
 
 

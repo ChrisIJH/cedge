@@ -11,6 +11,7 @@ import pytest
 
 from services.marketdata import app as _module
 
+
 @pytest.fixture
 def client():
     _module.app.config["TESTING"] = True

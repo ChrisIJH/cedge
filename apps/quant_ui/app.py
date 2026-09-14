@@ -8,8 +8,8 @@ this file only sets shared page config and a landing view.
 Run:
     streamlit run apps/quant_ui/app.py
 """
-from lib import api
 import streamlit as st
+from lib import api
 
 st.set_page_config(page_title="CEdge", layout="wide")
 

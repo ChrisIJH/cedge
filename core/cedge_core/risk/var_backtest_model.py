@@ -6,6 +6,7 @@ from typing import Dict, Optional
 import numpy as np
 from scipy import stats
 
+
 @dataclass(frozen=True)
 class BacktestConfig:
     alpha: float = 0.05     # VaR level
@@ -69,7 +70,7 @@ def christoffersen_cc(breaches: np.ndarray, alpha: float=0.05) -> Dict[str, obje
 
     pi01 = n01/(n01+n00) if (n00+n01) > 0 else 0.0
     pi11 = n11/(n11+n10) if (n10+n11) > 0 else 0.0
-    pi = (n10 + n11) / ( (n00 + n01 + n10 + n11)) if T > 1 else 0.0
+    pi = (n10 + n11) / ( n00 + n01 + n10 + n11) if T > 1 else 0.0
 
     def _xlogx(n: int, p: float):
         return -2 * n * np.log(p) if (n > 0 and p > 0) else 0.0

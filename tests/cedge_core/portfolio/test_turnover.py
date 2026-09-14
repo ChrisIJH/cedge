@@ -1,7 +1,7 @@
 from __future__ import annotations
+
 import pandas as pd
 import pytest
-
 from cedge_core.portfolio.turnover import compute_gross, compute_turnover
 
 

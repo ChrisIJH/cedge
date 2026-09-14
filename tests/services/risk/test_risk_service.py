@@ -8,14 +8,12 @@ test below, which pins the service to core: if the endpoint ever stops
 being a thin pass-through and starts doing its own arithmetic, that test
 fails.
 """
-import importlib.util
-import sys
 
 import numpy as np
 import pandas as pd
 import pytest
-
 from cedge_core.risk.param_var import rolling_parametric_var_confidence
+
 from services.risk import app as _module
 
 

@@ -30,3 +30,25 @@ pythonpath = ["."]
 markers = [
     "db: needs a live MySQL connection; excluded in CI, run locally",
 ]
+
+[tool.ruff]
+target-version = "py39"
+
+[tool.ruff.lint]
+ignore = [
+    "DTZ001",  # datetime without tzinfo — not meaningful for daily trading dates
+    "DTZ011",  # date.today() without tzinfo — same
+    "DTZ012",  # date.fromtimestamp() without tzinfo — same
+    "UP045",   # Optional[X] -> X | None — style preference, not a 3.9 compatibility issue
+    "UP006",   # List[X] -> list[X] — same
+    "UP035",   # deprecated typing imports — same
+    "UP007",   # Union[X, Y] -> X | Y — same
+    "FA100",   # future-rewritable-type-annotation — same family
+    "C408",    # dict()/list() calls instead of literals — style, not a bug
+]
+
+[tool.mypy]
+
+[[tool.mypy.overrides]]
+module = ["scipy", "scipy.*", "pandas", "pandas.*"]
+ignore_missing_imports = true

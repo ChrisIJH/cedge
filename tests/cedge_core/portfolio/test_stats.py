@@ -2,19 +2,14 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-
 import pytest
-
-
 from cedge_core.portfolio.stats import (
-    PerformanceStats,
-    compute_performance_stats,
-    calc_stats,
-    calc_return_stats,
-    build_yearly_breakdown,
     build_cumulative,
+    build_yearly_breakdown,
+    calc_return_stats,
+    calc_stats,
+    compute_performance_stats,
 )
-
 
 
 def _make_ret_series(seed: int, n: int = 252) -> pd.Series:

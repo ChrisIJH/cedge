@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 import pytest
-
 from cedge_core.risk.var_backtest_model import (
-    kupiec_uc,
-    christoffersen_cc,
-    run_backtest,
     acerbi_szekely_z2,
+    christoffersen_cc,
+    kupiec_uc,
+    run_backtest,
 )
+
 
 class TestKupiecUC:
     def test_no_breach_small_T_passes(self):

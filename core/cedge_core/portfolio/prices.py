@@ -34,12 +34,14 @@ surfaces later as an AttributeError at call time.
 """
 from __future__ import annotations
 
+from typing import Protocol
+
 import pandas as pd
 from sqlalchemy import text
 
 from cedge_core.db import ch_engine
 
-from typing import Protocol
+
 class PriceRepository(Protocol):
     def get_daily_prices(self, 
                          tickers: list[str], 

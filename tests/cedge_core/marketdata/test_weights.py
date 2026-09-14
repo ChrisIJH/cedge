@@ -3,7 +3,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-
 from cedge_core.marketdata.weights import exposures, portfolio_returns
 
 
@@ -41,7 +40,7 @@ class TestExposures:
 
 class TestPortfolioReturns:
     def test_weighted_sum_matches_hand_computation(self):
-        rp, dates, exp = portfolio_returns(_returns_frame(), {"AAA": 0.6, "BBB": 0.4})
+        rp, _dates, _exp = portfolio_returns(_returns_frame(), {"AAA": 0.6, "BBB": 0.4})
         # day 1: 0.6*0.10 + 0.4*0.00 = 0.06
         # day 2: 0.6*0.00 + 0.4*0.20 = 0.08
         # day 3: 0.6*(-0.05) + 0.4*0.10 = 0.01

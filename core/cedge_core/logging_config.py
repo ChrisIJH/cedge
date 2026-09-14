@@ -26,12 +26,10 @@ import os
 from logging.handlers import RotatingFileHandler
 from typing import Dict, Optional, Sequence, Tuple
 
-
 DEFAULT_LOG_DIR = "/home/research/work/cedge/logs"
 DEFAULT_FORMAT = "[%(asctime)s] [%(levelname)s] [%(name)s:%(lineno)d] [%(processName)s] %(message)s"
 
-_configured_roots: Dict[str, list] = {}
-
+_configured_roots: Dict[str, list[logging.Handler]] = {}
 
 class PerModuleDailyFileHandler(logging.Handler):
     """Routes each record to <log_dir>/<module>_<YYYY-MM-DD>.log.
@@ -79,7 +77,7 @@ class PerModuleDailyFileHandler(logging.Handler):
             module = record.name.rsplit(".", 1)[-1]
             day = _dt.date.fromtimestamp(record.created).isoformat()
             self._handler_for(module, day).emit(record)
-        except Exception:
+        except Exception: # noqa: BLE001 — logging must never crash the app it's logging for
             self.handleError(record)
 
     def setFormatter(self, fmt) -> None:
@@ -126,7 +124,7 @@ def configure_logging(
         dispatcher = PerModuleDailyFileHandler(log_dir)
         dispatcher.setFormatter(formatter)
         logger.addHandler(dispatcher)
-        attached = [dispatcher]
+        attached: list[logging.Handler] = [dispatcher]
 
         if console:
             stream = logging.StreamHandler()

@@ -1,11 +1,11 @@
 from __future__ import annotations
+
 import pickle
 from pathlib import Path
 
 import pandas as pd
 import pandas.testing as pdt
 import pytest
-
 from cedge_core.portfolio.performance import build_performance
 
 FIXTURE = Path(__file__).parent / "fixtures" / "known_answer_baseline.pkl"
