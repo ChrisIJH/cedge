@@ -10,21 +10,13 @@ fails.
 """
 import importlib.util
 import sys
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from cedge_core.risk.param_var import rolling_parametric_var_confidence
-
-# services/ is not an installed package (each service is its own deployable
-# unit, not a library), so the module is loaded by path rather than imported.
-_APP_PATH = Path(__file__).resolve().parents[3] / "services" / "risk" / "app.py"
-_spec = importlib.util.spec_from_file_location("risk_service_app", _APP_PATH)
-_module = importlib.util.module_from_spec(_spec)
-sys.modules["risk_service_app"] = _module
-_spec.loader.exec_module(_module)
+from services.risk import app as _module
 
 
 @pytest.fixture

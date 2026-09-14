@@ -20,13 +20,13 @@ from flask import Flask, request, jsonify
 
 from cedge_core.db import ch_engine
 from cedge_core.estimators import realized_beta
-from cedge_core.marketdata.portfolios import list_portfolio, load_weights_asof
+from cedge_core.marketdata.portfolios import SqlPortfolioRepository
 from cedge_core.marketdata.prices import load_prices_adjclose
 from cedge_core.marketdata.returns import to_returns
 from cedge_core.marketdata.weights import portfolio_returns
 
 app = Flask(__name__)
-
+_portfolio_repo = SqlPortfolioRepository()
 DEFAULT_MARKET = "SPY"
 
 class BadRequest(Exception):
@@ -96,7 +96,7 @@ def portfolios():
     Caller must pass all four back to /api/portfolio_weights
     """
     # Columns: pf_name, experiment_id, branch, source, start_date, end_date,n_dates, n_tickers.
-    frame = list_portfolio(ch_engine())
+    frame = _portfolio_repo.list_portfolio()
     for column in ("start_date", "end_date"):
         frame[column] = frame[column].astype(str)
     return jsonify({"portfolios": frame.to_dict(orient="records")})
@@ -113,8 +113,7 @@ def portfolio_weights():
 
     # These three are genuinely nullable for a live book, so an absent query
     # parameter means NULL here rather than "not specified".
-    weights, trade_date = load_weights_asof(
-        ch_engine(),
+    weights, trade_date = _portfolio_repo.load_weights_asof(
         pf_name,
         request.args.get("experiment_id"),
         request.args.get("branch"),
