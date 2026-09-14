@@ -50,5 +50,6 @@ ignore = [
 [tool.mypy]
 
 [[tool.mypy.overrides]]
-module = ["scipy", "scipy.*", "pandas", "pandas.*"]
+module = ["scipy", "scipy.*", "pandas", "pandas.*", "numpy", "numpy.*", "sqlalchemy", "sqlalchemy.*", "yaml"]
 ignore_missing_imports = true
+follow_imports = "skip"

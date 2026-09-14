@@ -18,7 +18,7 @@ jobs:
           python-version: "3.9"
 
       - name: Install lint tools
-        run: pip install --no-cache-dir ruff mypy pandas-stubs types-PyYAML
+        run:  pip install --no-cache-dir ruff mypy
 
       - name: ruff
         run: ruff check .
