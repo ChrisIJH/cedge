@@ -19,7 +19,7 @@ import yaml
 from sqlalchemy import create_engine
 from sqlalchemy.pool import QueuePool
 
-DEFAULT_CONFIG_PATH = "/home/research/work/conf/config.yaml"
+DEFAULT_CONFIG_PATH = "./conf/config.yaml"
 DEFAULT_DB_HOST = "localhost"
 DEFAULT_DB_NAME = "securities_master"
 
