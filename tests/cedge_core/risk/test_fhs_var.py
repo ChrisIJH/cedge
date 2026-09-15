@@ -12,6 +12,7 @@ import pytest
 from cedge_core.risk.fhs_var import (
     _rolling_fhs_es_loop,
     _rolling_fhs_es_vectorized,
+    bootstrap_quantile_ci,
     ewma_filter,
     fhs_quantile,
     rolling_fhs_es,
@@ -153,3 +154,52 @@ class TestVectorizedMatchesLoop:
         result = _rolling_fhs_es_vectorized(z, sigma, window, alpha)
 
         np.testing.assert_array_equal(result, expected)
+
+class TestBootstrapCI:
+    def test_ci_contains_direct_estimate(self):
+        rng = np.random.default_rng(3)
+        z_pool = rng.standard_t(df=5, size=500) / np.sqrt(5 / 3)
+        result = bootstrap_quantile_ci(z_pool, alpha=0.05, n_boot=2000, rng=rng)
+
+        assert result["ci_low"] < result["var"] < result["ci_high"]
+        assert result["se"] > 0
+
+    def test_wider_ci_for_smaller_pool(self):
+        """Less data -> more uncertainty -> wider CI, at the same alpha."""
+        rng = np.random.default_rng(9)
+        small_pool = rng.standard_t(df=5, size=60) / np.sqrt(5 / 3)
+        large_pool = rng.standard_t(df=5, size=2000) / np.sqrt(5 / 3)
+
+        small = bootstrap_quantile_ci(small_pool, alpha=0.05, n_boot=2000,
+                                      rng=np.random.default_rng(1))
+        large = bootstrap_quantile_ci(large_pool, alpha=0.05, n_boot=2000,
+                                      rng=np.random.default_rng(1))
+
+        assert (small["ci_high"] - small["ci_low"]) > (large["ci_high"] - large["ci_low"])
+
+    def test_ci_bounds_ordered(self):
+        rng = np.random.default_rng(4)
+        z_pool = rng.standard_normal(300)
+        result = bootstrap_quantile_ci(z_pool, alpha=0.01, n_boot=1000, rng=rng)
+        assert result["ci_low"] <= result["ci_high"]
+
+
+class TestRollingFhsVarBootstrapWiring:
+    def test_bootstrap_path_actually_uses_n_bootstrap(self):
+        """Regression guard for the bug where rolling_fhs_var's loop branch
+        called fhs_quantile(z_pool, alpha) without n_bootstrap or rng —
+        silently falling back to the deterministic quantile every time."""
+        rng = np.random.default_rng(2)
+        r = rng.standard_normal(400) * 0.01
+
+        det = rolling_fhs_var(r, window=100, alpha=0.05, n_bootstrap=None)
+        boot_a = rolling_fhs_var(r, window=100, alpha=0.05, n_bootstrap=50,
+                                 rng=np.random.default_rng(1))
+        boot_b = rolling_fhs_var(r, window=100, alpha=0.05, n_bootstrap=50,
+                                 rng=np.random.default_rng(2))
+
+        valid = ~np.isnan(det)
+        # Before the fix, boot_a and boot_b (different seeds) would be
+        # identical to each other AND to det, since n_bootstrap was ignored.
+        assert not np.array_equal(boot_a[valid], boot_b[valid]), \
+            "different seeds gave identical output -> n_bootstrap is being ignored"
