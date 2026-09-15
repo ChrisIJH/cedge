@@ -220,7 +220,6 @@ def rolling_fhs_es(returns: np.ndarray, window: int, alpha: float,
     _check_return(r)
     _check_alpha(alpha)
 
-    n = len(r)
     start = int(window)
     sigma2_init = float(np.var(r[:start]))
     sigma, z = ewma_filter(r, lam, sigma2_init)

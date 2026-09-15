@@ -10,12 +10,12 @@ package) — NOT confidence level (contrast param_var.py).
 import numpy as np
 import pytest
 from cedge_core.risk.fhs_var import (
+    _rolling_fhs_es_loop,
+    _rolling_fhs_es_vectorized,
     ewma_filter,
     fhs_quantile,
     rolling_fhs_es,
     rolling_fhs_var,
-    _rolling_fhs_es_loop, 
-    _rolling_fhs_es_vectorized
 )
 from scipy import stats
 
