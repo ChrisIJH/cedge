@@ -26,7 +26,7 @@ import os
 from logging.handlers import RotatingFileHandler
 from typing import Dict, Optional, Sequence, Tuple
 
-DEFAULT_LOG_DIR = "/home/research/work/cedge/logs"
+DEFAULT_LOG_DIR = "./logs"
 DEFAULT_FORMAT = "[%(asctime)s] [%(levelname)s] [%(name)s:%(lineno)d] [%(processName)s] %(message)s"
 
 _configured_roots: Dict[str, list[logging.Handler]] = {}
