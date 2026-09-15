@@ -14,6 +14,8 @@ from cedge_core.risk.fhs_var import (
     fhs_quantile,
     rolling_fhs_es,
     rolling_fhs_var,
+    _rolling_fhs_es_loop, 
+    _rolling_fhs_es_vectorized
 )
 from scipy import stats
 
@@ -134,3 +136,20 @@ class TestEdgeCases:
         v = rolling_fhs_var(r, window=100, alpha=0.01)
         valid = v[~np.isnan(v)]
         assert (valid > 0).all(), "VaR must be a positive loss magnitude"
+
+
+class TestVectorizedMatchesLoop:
+    def test_vectorized_es_matches_reference_loop_implementation(self):
+        """Regression guard: the two implementations of the n_bootstrap=None
+        path must agree bit-for-bit on data with real tail variation."""
+        rng = np.random.default_rng(5)
+        r = rng.standard_t(4, 800) / np.sqrt(4 / 2) * 0.01
+        window, alpha, lam = 100, 0.01, 0.94
+
+        sigma2_init = float(np.var(r[:window]))
+        sigma, z = ewma_filter(r, lam, sigma2_init)
+
+        expected = _rolling_fhs_es_loop(z, sigma, window, alpha)
+        result = _rolling_fhs_es_vectorized(z, sigma, window, alpha)
+
+        np.testing.assert_array_equal(result, expected)
