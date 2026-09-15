@@ -110,11 +110,65 @@ def fhs_quantile(z_pool: np.ndarray, alpha: float,
     draws = rng.choice(z_pool, size=int(n_bootstrap), replace=True)
     return float(np.quantile(draws, alpha))
 
+def bootstrap_quantile_ci(z_pool: np.ndarray, alpha: float, n_boot: int = 5000,
+                          ci: float = 0.95,
+                          rng: Optional[np.random.Generator] = None) -> dict:
+    """Bootstrap standard error and confidence interval for the empirical
+    alpha-quantile of z_pool — NOT a replacement point estimate.
+
+    Each of `n_boot` replications resamples z_pool WITH REPLACEMENT at its
+    ORIGINAL size (not n_boot — that parameter is the number of
+    replications, not a resample size), computes that replication's
+    quantile, then the spread of the n_boot resulting quantiles becomes the
+    standard error / confidence interval.
+
+    This answers "how much should I trust this quantile estimate, given
+    only len(z_pool) historical observations" — it does NOT produce a
+    better point estimate than the direct empirical quantile. A single
+    bootstrap draw's quantile is, if anything, a noisier version of the
+    same number (see docs/ or the commit that introduced this function for
+    the benchmark showing this) — the value of bootstrapping is entirely in
+    looking at the SPREAD across many replications, never in using one
+    replication's result on its own.
+
+    Returns {"var": direct point estimate, "se": std of the n_boot
+    replications, "ci_low", "ci_high": percentile-based CI bounds}.
+    """
+    _check_alpha(alpha)
+    if z_pool.size == 0:
+        raise ValueError("z_pool is empty")
+    if np.isnan(z_pool).any():
+        raise ValueError("z_pool contains NaN")
+    if not 0 < ci < 1:
+        raise ValueError(f"ci must be in (0, 1), got {ci!r}")
+
+    rng = np.random.default_rng() if rng is None else rng
+    n = z_pool.size
+
+    replications = np.empty(n_boot)
+    for b in range(n_boot):
+        resample = rng.choice(z_pool, size=n, replace=True)
+        replications[b] = np.quantile(resample, alpha)
+
+    tail = (1 - ci) / 2
+    ci_low = float(np.quantile(replications, tail))
+    ci_high = float(np.quantile(replications, 1 - tail))
+    return {
+        "var": float(np.quantile(z_pool, alpha)),
+        "se": float(replications.std()),
+        "ci_low": float(ci_low),
+        "ci_high": float(ci_high),
+        "n_boot": n_boot,
+    }
+
+
+
+
 
 def rolling_fhs_var(returns: np.ndarray, window: int, alpha: float,
                     lam: float = 0.94, n_bootstrap: Optional[int] = None,
                     rng: Optional[np.random.Generator] = None) -> np.ndarray:
-    """Rolling Filtered Historical Simulation VaR.
+    """Rolling Filtered Historical Simulation VaR (vectorized version).
 
     sigma/z come from a single EWMA pass over the whole series (seeded from
     the variance of the first `window` returns), so sigma[t] reflects the
@@ -141,12 +195,22 @@ def rolling_fhs_var(returns: np.ndarray, window: int, alpha: float,
         out = -q * sigma
     else:
         out = np.full(n, np.nan)
-        rng = np.random.default_rng() if rng is None else rng
-        for t in range(start, n):
-            z_pool = z[t - window:t]
-            q = fhs_quantile(z_pool, alpha)
-            out[t] = -sigma[t] * q
+        if n > start:
+            rng = np.random.default_rng() if rng is None else rng
+            windows = np.lib.stride_tricks.sliding_window_view(z[:n-1], start)
+            n_windows = windows.shape[0]
+            bagged = np.full(n_windows, np.nan)
+
+            for k in range(n_windows):
+                idx = rng.integers(0, start, size=(n_bootstrap, start)) # (n_bootstrap, n_window)
+                resamples = windows[k][idx] # (n_bootstrap, n_window)
+                req_q = np.quantile(resamples, alpha, axis=1) # (n_bootstrap,)
+                bagged[k] = req_q.mean() # scalar
+
+            out[start:] = -sigma[start:] * bagged
+        
     return out
+
 
 def _rolling_fhs_es_loop(z: np.ndarray, sigma: np.ndarray, window: int, alpha: float,
                          n_bootstrap: Optional[int] = None,
@@ -170,9 +234,6 @@ def _rolling_fhs_es_loop(z: np.ndarray, sigma: np.ndarray, window: int, alpha: f
             continue
         out[i] = -sigma[i] * tail.mean()
     return out
-
-
-
 
 def _rolling_fhs_es_vectorized(z: np.ndarray, sigma: np.ndarray, window: int,
                                alpha: float) -> np.ndarray:
@@ -202,9 +263,6 @@ def _rolling_fhs_es_vectorized(z: np.ndarray, sigma: np.ndarray, window: int,
     out[start:] = -sigma[start:] * tail_mean
     return out
     
-
-
-
 def rolling_fhs_es(returns: np.ndarray, window: int, alpha: float,
                    lam: float = 0.94, n_bootstrap: Optional[int] = None,
                    rng: Optional[np.random.Generator] = None) -> np.ndarray:
