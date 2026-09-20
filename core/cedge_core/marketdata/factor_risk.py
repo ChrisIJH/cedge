@@ -13,7 +13,7 @@ from typing import List, Optional, Protocol, Tuple
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import text, bindparam
+from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from cedge_core.db import ch_engine
