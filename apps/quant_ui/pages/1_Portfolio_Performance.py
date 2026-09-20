@@ -55,12 +55,27 @@ if not long_tickers or not short_tickers:
     st.warning("Provide at least one long ticker and one short ticker.")
     st.stop()
 
-body = api.post("portfolio_performance", "/api/factor_portfolio_performance", {
-    "tickers": long_tickers + short_tickers,
-    "positions": (["LONG"] * len(long_tickers)) + (["SHORT"] * len(short_tickers)),
-    "start_date": str(start_date),
-    "end_date": str(end_date),
-})
+st.sidebar.divider()
+run = st.sidebar.button("Run", type="primary", use_container_width=True)
+
+if run:
+    body = api.post("portfolio_performance", "/api/factor_portfolio_performance", {
+        "tickers": long_tickers + short_tickers,
+        "positions": (["LONG"] * len(long_tickers)) + (["SHORT"] * len(short_tickers)),
+        "start_date": str(start_date),
+        "end_date": str(end_date),
+    })
+    st.session_state["perf_body"] = body
+    st.session_state["perf_long_tickers"] = long_tickers
+    st.session_state["perf_short_tickers"] = short_tickers
+
+if "perf_body" not in st.session_state:
+    st.info("Set the book and period in the sidebar, then click **Run**.")
+    st.stop()
+
+body = st.session_state["perf_body"]
+long_tickers = st.session_state["perf_long_tickers"]
+short_tickers = st.session_state["perf_short_tickers"]
 
 cum_returns = pd.DataFrame(body["cum_returns"])
 cum_returns["date"] = pd.to_datetime(cum_returns["date"])

@@ -84,26 +84,37 @@ if not levels or not methods:
 
 alpha_levels = sorted({round(1.0 - c, 4) for c in levels}, reverse=True)
 
-##### 
+st.sidebar.divider()
+run = st.sidebar.button("Run Backtest", type="primary", use_container_width=True)
 
+if run:
+    returns_body = api.post("marketdata", "/api/portfolio_returns", {
+        "weights": weights, "start_date": str(start_date), "end_date": str(end_date),
+    })
 
-returns_body = api.post("marketdata", "/api/portfolio_returns", {
-    "weights": weights, "start_date": str(start_date), "end_date": str(end_date),
-})
+    if window >= returns_body["n_observations"]:
+        st.warning(
+            f"The window ({window}d) must be shorter than the sample "
+            f"({returns_body['n_observations']} observations)."
+        )
+        st.stop()
 
+    backtest_body = api.post("risk", "/api/full_backtest", {
+        "returns": returns_body["returns"], "window": window,
+        "levels": alpha_levels, "methods": methods, "n_boot": n_boot,
+    })
 
-if window >= returns_body["n_observations"]:
-    st.warning(
-        f"The window ({window}d) must be shorter than the sample "
-        f"({returns_body['n_observations']} observations)."
-    )
+    st.session_state["var_returns_body"] = returns_body
+    st.session_state["var_backtest_body"] = backtest_body
+    st.session_state["var_book_label"] = book_label
+
+if "var_backtest_body" not in st.session_state:
+    st.info("Set the book, period, and backtest settings in the sidebar, then click **Run Backtest**.")
     st.stop()
 
-backtest_body = api.post("risk", "/api/full_backtest", {
-    "returns": returns_body["returns"], "window": window,
-    "levels": alpha_levels, "methods": methods, "n_boot": n_boot,
-})
-
+returns_body = st.session_state["var_returns_body"]
+backtest_body = st.session_state["var_backtest_body"]
+book_label = st.session_state["var_book_label"]
 
 dates = pd.to_datetime(returns_body["dates"])
 cells = backtest_body["cells"]

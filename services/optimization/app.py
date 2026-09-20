@@ -167,7 +167,8 @@ def _build_factor_cov(tickers, payload) -> np.ndarray:
     except LookupError as e:
         raise NotFound(str(e))
 
-    return factor_model_covariance(B, sigma_f, resid_var)
+    cov = factor_model_covariance(B, sigma_f, resid_var)
+    return cov, list(B.index)
 
 
 
@@ -198,10 +199,14 @@ def optimize():
     # Build covariance matrix
     if cov_method == "sample":
         cov = _build_sample_cov(tickers, payload)
+        aligned_tickers = tickers
     elif cov_method == "factor_model":
-        cov = _build_factor_cov(tickers, payload)
+        cov, aligned_tickers = _build_factor_cov(tickers, payload)
     else:
         raise BadRequest(f"unknown cov_method: {cov_method}")
+
+    dropped = sorted(set(tickers) - set(aligned_tickers))
+    w_prev = np.array([weights_dict[t] for t in aligned_tickers] )
 
     # Prepare strategy kwargs
     kwargs = {
@@ -220,7 +225,7 @@ def optimize():
     if alpha_dict:
         if not isinstance(alpha_dict, dict):
             raise BadRequest("'alpha' must be a dict of {ticker: value}")
-        alpha = np.array([alpha_dict.get(t, 0.0) for t in tickers])
+        alpha = np.array([alpha_dict.get(t, 0.0) for t in aligned_tickers])
         kwargs["alpha"] = alpha
 
     # Factor constraints (if provided)
@@ -238,7 +243,7 @@ def optimize():
 
     # Return
     return jsonify({
-        "weights": {tickers[i]: float(result.weights[i]) for i in range(len(tickers))},
+        "weights": {tickers[i]: float(result.weights[i]) for i in range(len(aligned_tickers))},
         "status": result.status,
         "risk": float(result.risk),
         "turnover": float(result.turnover),
@@ -246,6 +251,7 @@ def optimize():
         "net_realized": float(result.net_realized),
         "solver": result.solver,
         "cov_method": cov_method,
+        "droped_tickers": dropped,
     })
 
 if __name__ == "__main__":
