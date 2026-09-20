@@ -77,7 +77,17 @@ def _require_weights(payload):
         cleaned[ticker] = weight
     return cleaned
 
-
+def _require_tickers(payload):
+    tickers = payload.get('tickers')
+    if not isinstance(tickers, list) or not tickers:
+        raise BadRequest("'tickers' must be a non-empty list of strings")
+    cleaned = []
+    for ticker in tickers:
+        ticker = str(ticker).strip().upper()
+        if not ticker:
+            raise BadRequest("'tickers' contains an empty ticker")
+        cleaned.append(ticker)
+    return cleaned
 
 @app.route("/healthz", methods=["GET"])
 def healthz():
@@ -188,6 +198,46 @@ def returns():
         "beta": beta,
         "weighting": "fixed weights applied across the whole window; not a rebalanced backtest",
     })
+
+@app.route("/api/asset_returns", methods=['POST'])
+def asset_returns():
+    """Multi-asset daily returns, aligned to a common date index.
+
+    Distinct from /api/portfolio_returns, which aggregates to one series
+    via weights — this returns every ticker's own series.
+    """
+    payload = request.get_json(silent=True)
+    if payload is None:
+        raise BadRequest("request boty must be JSON")
+
+    tickers = _require_tickers(payload)
+    start_date = _require_date(payload, "start_date")
+    end_date = _require_date(payload, 'end_date')
+
+    panel = load_prices_adjclose(
+        ch_engine(), sorted(set(tickers)), start_date, end_date
+    )
+
+    missing = [t for t in tickers if t not in panel.columns]
+    if missing:
+        raise NotFound(
+            f"no price data for {', '.join(missing)} between {start_date} and {end_date}"
+        )
+
+    returns = to_returns(panel[tickers], 'simple')
+    if len(returns) == 0:
+        raise NotFound(
+            "no overlapping trading days for these tickers in this range"
+        )
+
+    return jsonify(
+        {
+            "dates": [str(d) for d in returns.index],
+            "tickers": tickers,
+            "returns": {t: _json_safe(returns[t]) for t in tickers},
+        }
+    )
+    
 
 
 if __name__ == "__main__":
