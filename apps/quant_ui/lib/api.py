@@ -23,6 +23,8 @@ SERVICE_URLS = {
         "CEDGE_RISK_API_URL", "http://localhost:8001"),
     "marketdata": os.getenv(
         "CEDGE_MARKETDATA_API_URL", "http://localhost:8002"),
+    "optimization": os.getenv(
+        "CEDGE_OPTIMIZATION_API_URL", "http://localhost:8003"),
 }
 
 def _base_url(service: str) -> str:
@@ -36,7 +38,7 @@ def _handle_error_and_stop(service: str, exc: Optional[Exception],
     """Render one consistent error banner and halt this page's execution.""" 
     if response is not None and response.status_code == 400:
         st.error(f"**{service}** rejected the request:"
-                  "{response.json().get('error', 'not found')}")
+                  f"{response.json().get('error', 'not found')}")
     elif response is not None and response.status_code == 404:
         st.warning(f"**{service}**: {response.json().get('error', 'not found')}")
     else:

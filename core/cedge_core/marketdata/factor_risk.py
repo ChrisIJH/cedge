@@ -13,7 +13,7 @@ from typing import List, Optional, Protocol, Tuple
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
 from sqlalchemy.engine import Engine
 
 from cedge_core.db import ch_engine
@@ -58,16 +58,19 @@ class SqlFactorRiskRepository:
         if not tickers:
             raise ValueError("tickers empty")
 
-        sql = text("""
+        placeholders = ", ".join(f":t{i}" for i in range(len(tickers)))
+        sql = text(f"""
             select ticker, factor_name, beta_mean
             from factor_betas_bayes
             where asof_date = :asof
               and lookback_window = :lookback
               and model_version = :model_version
-              and ticker in :tickers 
-            """).bindparams('tickers', expanding=True)
+              and ticker in ({placeholders})
+            """)
         params = {"asof": asof_date, "lookback": int(lookback_window),
-                  "model_version": model_version, "tickers": list(tickers)}
+                  "model_version": model_version, 
+                  **{f"t{i}": t for i, t in enumerate(tickers)}}
+        
         with self._resolve_engine().begin() as conn:
             df = pd.read_sql(sql, conn, params=params)
         if df.empty:
@@ -137,19 +140,21 @@ class SqlFactorRiskRepository:
         """D's diagonal: index=ticker, values=resid_var."""
         if not tickers:
             raise ValueError("tickers is empty")
+        placeholders = ", ".join(f":t{i}" for i in range(len(tickers)))
 
-        sql = """
+        sql = text(f"""
             select ticker, resid_var
             from factor_resid_var
             where asof_date = :asof
               and method_ = :method
               and lookback = :lookback
-              and ticker in :tickers
-        """
+              and ticker in ({placeholders})
+        """)
         params = {"asof": asof_date, "method": method,
-                  "lookback": int(lookback), "tickers": tuple(tickers)}
+                  "lookback": int(lookback), 
+                  **{f"t{i}": t for i, t in enumerate(tickers)}}
         with self._resolve_engine().begin() as conn:
-            df = pd.read_sql(text(sql), conn, params=params)
+            df = pd.read_sql(sql, conn, params=params)
 
         if df.empty:
             raise LookupError(
