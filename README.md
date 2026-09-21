@@ -55,11 +55,11 @@ on screen arrives over HTTP.
 | `portfolio_performance` | 8000 | Cumulative return + stats for a long/short book |
 | `risk` | 8001 | Rolling VaR/ES (parametric, FHS) and their backtests |
 | `marketdata` | 8002 | Portfolio lookup, as-of weight snapshots, portfolio → return series |
-| `optimization` | 8003 | Portfolio lookup, as-of weight snapshots, portfolio → return series |
+| `optimization` | 8003 | sample covariance, factor covariance, optimization |
 
 ## What's in `apps`
 
-`quant_ui` (Streamlit, port 8501) — a thin client over the three services
+`quant_ui` (Streamlit, port 8501) — a thin client over the services
 above.
 
 | Page | Backed by |
@@ -119,7 +119,7 @@ docker run -p 8001:8000 cedge-risk
 curl localhost:8001/healthz
 ```
 
-`risk` and `optimization` has no database dependency and runs standalone. `portfolio_performance`
+`risk` and `optimization` have no database dependency and runs standalone. `portfolio_performance`
 and `marketdata` need `CEDGE_DB_USER` / `CEDGE_DB_PASSWORD` /
 `CEDGE_DB_HOST` (see `core/cedge_core/db.py`).
 
