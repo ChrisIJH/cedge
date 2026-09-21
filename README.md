@@ -24,9 +24,11 @@ graph LR
     A[apps/quant_ui<br/>Streamlit :8501] --> S1[services/portfolio_performance<br/>:8000]
     A --> S2[services/risk<br/>:8001]
     A --> S3[services/marketdata<br/>:8002]
+    A --> S4[services/optimization<br/>:8003]
     S1 --> C[core/cedge_core<br/>pure quant logic]
     S2 --> C
     S3 --> C
+    S4 --> C
     C --> D[(MySQL)]
     style C fill:#2d5016,color:#fff
 ```
@@ -44,6 +46,7 @@ on screen arrives over HTTP.
 | `risk/` | VaR & Expected Shortfall — parametric and Filtered Historical Simulation, with Kupiec / Christoffersen / Acerbi–Székely backtests |
 | `portfolio/` | Long/short performance, turnover, rolling statistics |
 | `marketdata/` | Prices, returns, portfolio definitions, weight normalization |
+| `optimization/` | covariance, mean_variance|
 
 ## What's in `services`
 
@@ -52,16 +55,18 @@ on screen arrives over HTTP.
 | `portfolio_performance` | 8000 | Cumulative return + stats for a long/short book |
 | `risk` | 8001 | Rolling VaR/ES (parametric, FHS) and their backtests |
 | `marketdata` | 8002 | Portfolio lookup, as-of weight snapshots, portfolio → return series |
+| `optimization` | 8003 | Portfolio lookup, as-of weight snapshots, portfolio → return series |
 
 ## What's in `apps`
 
 `quant_ui` (Streamlit, port 8501) — a thin client over the three services
-above. Two pages so far:
+above.
 
 | Page | Backed by |
 |---|---|
 | Portfolio Performance | `portfolio_performance` |
 | VaR Backtest | `marketdata` + `risk` |
+| Portfolio Optimization | `optimization` + `marketdata` |
 
 ## Design decisions
 
@@ -114,7 +119,7 @@ docker run -p 8001:8000 cedge-risk
 curl localhost:8001/healthz
 ```
 
-`risk` has no database dependency and runs standalone. `portfolio_performance`
+`risk` and `optimization` has no database dependency and runs standalone. `portfolio_performance`
 and `marketdata` need `CEDGE_DB_USER` / `CEDGE_DB_PASSWORD` /
 `CEDGE_DB_HOST` (see `core/cedge_core/db.py`).
 
@@ -137,17 +142,12 @@ pytest -m "not db"
 
 ## Status
 
-**In this repo:** the three services and two UI pages above, all with CI
+**In this repo:** the four services and three UI pages above, all with CI
 and known-answer test coverage.
 
 **Exists in a separate, operating system — not in this public repo:**
-regime classification, portfolio optimization, factor/PCA risk models,
-decision workflow and sensitivity analysis, and the What-If experiment
-engine. These are real and running; they aren't here because each depends
+The original application includes regime classification, factor/PCA risk models,
+decision workflow and the What-If experiment
+engine; they aren't here because each depends
 on infrastructure (a factor risk store, an experiment tracking schema).
-
-
-**Known limitations:** tracked as [GitHub issues](https://github.com/ChrisIJH/cedge/issues) —
-currently one open, an `instrument_type` filter in `portfolio_performance`
-that blocks ETF tickers.
 
