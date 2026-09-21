@@ -11,6 +11,6 @@ venv/
 nohup.out
 .DS_Store
 
-# 데이터 파일은 기본 제외, 테스트 fixture만 예외
 *.pkl
-!tests/**/fixtures/*.pkl
+.mypy_cache/
+.ruff_cache/
