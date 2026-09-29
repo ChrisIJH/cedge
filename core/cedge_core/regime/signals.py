@@ -11,6 +11,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+
 def trailing_zscore(series: pd.Series, window: int = 252) -> Optional[float]:
     """
     Z-score of the latest observation against the trailing `window`

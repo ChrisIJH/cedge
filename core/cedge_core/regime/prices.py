@@ -14,12 +14,13 @@ gets its own unfiltered query.
 """
 from __future__ import annotations
 
-from typing import Protocol, List
+from typing import Protocol
 
 import pandas as pd
 from sqlalchemy import text
 
 from cedge_core.db import ch_engine
+
 
 class MacroPriceRepository(Protocol):
     def get_macro_prices(self,

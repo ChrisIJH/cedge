@@ -85,12 +85,12 @@ class ScoreWeights:
 def composite_score(vix_z: Optional[float], dxy_z: Optional[float],
                      ief_z: Optional[float], credit_z: Optional[float],
                      pca: Optional[float],
-                     weights: ScoreWeights = ScoreWeights()) -> float:
+                     weights: Optional[ScoreWeights] = None) -> float:
     """
     0-100 composite regime score: base + linear z-score terms + credit
     asymmetry + VIX s-curve penalty + PCA term, clamped to [0, 100].
-
     """
+    weights = weights or ScoreWeights()
     lin = (weights.vix * (vix_z or 0.0)
            + weights.dxy * (dxy_z or 0.0)
            + weights.credit * (credit_z or 0.0)

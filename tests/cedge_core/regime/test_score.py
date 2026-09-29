@@ -2,8 +2,12 @@ import math
 
 import pandas as pd
 import pytest
-
-from cedge_core.regime.score import composite_score, credit_asym, pc1_score, s_curve_penalty
+from cedge_core.regime.score import (
+    composite_score,
+    credit_asym,
+    pc1_score,
+    s_curve_penalty,
+)
 
 
 def test_s_curve_penalty_neutral():

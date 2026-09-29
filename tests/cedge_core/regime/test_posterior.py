@@ -1,5 +1,4 @@
 import pytest
-
 from cedge_core.regime.posterior import mixture_posterior
 
 

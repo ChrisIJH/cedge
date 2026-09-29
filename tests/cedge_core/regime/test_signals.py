@@ -1,6 +1,5 @@
 import pandas as pd
 import pytest
-
 from cedge_core.regime.signals import credit_ratio, trailing_zscore
 
 

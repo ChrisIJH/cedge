@@ -13,7 +13,6 @@ from typing import Dict, Optional, Sequence
 
 import numpy as np
 
-
 _LABELS = ("risk_off", "soft_patch", "risk_on")
 _DEFAULT_MUS = (20.0, 50.0, 80.0)
 _DEFAULT_SIGMA = 15.0
