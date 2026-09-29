@@ -28,8 +28,7 @@ class MacroPriceRepository(Protocol):
                          start_date: str,
                          end_date: str) -> pd.DataFrame:
         ...
-
-
+        
 
 class SqlMacroPriceRepository:
     """MySQL connection. No instrument_type filter — callers pass exactly
@@ -62,9 +61,9 @@ class SqlMacroPriceRepository:
                                        'start_date': start_date,
                                        'end_date': end_date,
                                        })
-
 _default_repo = SqlMacroPriceRepository()
 
 def get_macro_prices(tickers: list[str], start_date: str, end_date: str,
                      repo: MacroPriceRepository = _default_repo) -> pd.DataFrame:
     return repo.get_macro_prices(tickers, start_date, end_date)
+
