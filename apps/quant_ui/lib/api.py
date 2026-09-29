@@ -25,6 +25,8 @@ SERVICE_URLS = {
         "CEDGE_MARKETDATA_API_URL", "http://localhost:8002"),
     "optimization": os.getenv(
         "CEDGE_OPTIMIZATION_API_URL", "http://localhost:8003"),
+    "regime": os.getenv(
+        "CEDGE_REGIME_API_URL", "http://localhost:8004"),
 }
 
 def _base_url(service: str) -> str:

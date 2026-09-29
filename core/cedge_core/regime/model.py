@@ -72,3 +72,10 @@ def compute_regime(px_macro: pd.DataFrame,
         vix_z=vix_z, dxy_z=dxy_z, ief_z=ief_z, credit_z=credit_z,
         pca_factor=pca,
     )
+
+def prices_to_wide(long_prices: pd.DataFrame) -> pd.DataFrame:
+    """get_macro_prices()'s long-form output (ticker, date, adj_close_price)
+    -> wide (index=date, columns=ticker), as compute_regime expects."""
+    df = long_prices.drop_duplicates(subset=["date", "ticker"])
+    return df.pivot(index="date", columns="ticker",
+                    values="adj_close_price").sort_index()
