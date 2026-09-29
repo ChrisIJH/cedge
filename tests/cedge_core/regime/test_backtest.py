@@ -1,6 +1,5 @@
 import pandas as pd
 import pytest
-
 from cedge_core.regime.backtest import (
     bucket_stats_by_label,
     forward_returns,
