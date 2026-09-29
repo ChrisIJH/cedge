@@ -73,10 +73,19 @@ def pc1_score(z_history: pd.DataFrame,
 @dataclass(frozen=True)
 class ScoreWeights:
     """Linear weights on each macro z-score, plus the PCA term weight and
-    base score. Matches CHResearch's `regime_dashboard` defaults exactly."""
+    base score. Matches CHResearch's `regime_dashboard` defaults exactly.
+    
+    Hand-tuned, not fitted. An IC/Sharpe-optimization experiment against
+    2015-2025 SPY 1-day forward returns (CHResearch's
+    regime_weights_ic.py / regime_weights_sharpe.py, cvxpy/scipy) found
+    the data-driven weights collapse toward zero on dxy/ief and only
+    marginally improve IC (manual 0.1466 -> optimized 0.2322) and Sharpe
+    (0.530 -> 0.534) -- too weak and unstable a signal to trust a fitted
+    weight vector over the interpretable manual one. Kept as an explicit
+    domain prior; recalibration is a follow-up, not done here.
+    """
     vix: float = -12.0
     dxy: float = -8.0
-    credit: float = -10.0
     ief: float = -6.0
     pca: float = -6.0
     base: float = 50.0
@@ -93,7 +102,6 @@ def composite_score(vix_z: Optional[float], dxy_z: Optional[float],
     weights = weights or ScoreWeights()
     lin = (weights.vix * (vix_z or 0.0)
            + weights.dxy * (dxy_z or 0.0)
-           + weights.credit * (credit_z or 0.0)
            + weights.ief * (ief_z or 0.0))
 
     score = (weights.base

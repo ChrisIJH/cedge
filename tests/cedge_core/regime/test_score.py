@@ -45,17 +45,21 @@ def test_pc1_score_anchor_sign_convention():
 
 
 def test_composite_score_neutral_inputs_is_40_not_50():
-    # Known issue: fully neutral macro backdrop still scores below 50.
+    # Still-known issue (separate follow-up): fully neutral macro
+    # backdrop still scores below 50.
     score = composite_score(vix_z=0.0, dxy_z=0.0, ief_z=0.0, credit_z=0.0, pca=0.0)
     assert score == pytest.approx(40.0)
 
 
-def test_composite_score_credit_sign_invariance_bug():
-    # Known issue: credit_z=+1 (risk-on) and credit_z=-1 (risk-off)
-    # produce the IDENTICAL score — the combined credit term is -5*|z|
-    # regardless of sign.
+
+
+def test_composite_score_credit_asymmetry_fixed():
+    # credit_z=+1 (risk-on, tightening) and credit_z=-1 (risk-off,
+    # widening) now produce DIFFERENT scores, with widening penalized
+    # 3x harder than tightening is rewarded (widen_weight=15 vs
+    # tighten_weight=5) -- the asymmetry credit_asym was built for.
     score_pos = composite_score(vix_z=0.0, dxy_z=0.0, ief_z=0.0, credit_z=1.0, pca=0.0)
     score_neg = composite_score(vix_z=0.0, dxy_z=0.0, ief_z=0.0, credit_z=-1.0, pca=0.0)
-    assert score_pos == pytest.approx(35.0)
-    assert score_neg == pytest.approx(35.0)
-    assert score_pos == score_neg
+    assert score_pos == pytest.approx(45.0)
+    assert score_neg == pytest.approx(25.0)
+    assert (score_pos - 40.0) == pytest.approx(-(score_neg - 40.0) / 3)
