@@ -10,6 +10,7 @@ from cedge_core.regime.score import (
 )
 
 
+    
 def test_s_curve_penalty_neutral():
     assert s_curve_penalty(0.0) == pytest.approx(-10.0)
 
