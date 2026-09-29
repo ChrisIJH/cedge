@@ -25,10 +25,12 @@ graph LR
     A --> S2[services/risk<br/>:8001]
     A --> S3[services/marketdata<br/>:8002]
     A --> S4[services/optimization<br/>:8003]
+    A --> S5[services/regime<br/>:8004]
     S1 --> C[core/cedge_core<br/>pure quant logic]
     S2 --> C
     S3 --> C
     S4 --> C
+    S5 --> C
     C --> D[(MySQL)]
     style C fill:#2d5016,color:#fff
 ```
@@ -47,6 +49,7 @@ on screen arrives over HTTP.
 | `portfolio/` | Long/short performance, turnover, rolling statistics |
 | `marketdata/` | Prices, returns, portfolio definitions, weight normalization |
 | `optimization/` | covariance, mean_variance|
+| `regime/` | Macro regime score/posterior/policy (fixed-mixture Bayesian), history, forward-return backtest |
 
 ## What's in `services`
 
@@ -56,6 +59,7 @@ on screen arrives over HTTP.
 | `risk` | 8001 | Rolling VaR/ES (parametric, FHS) and their backtests |
 | `marketdata` | 8002 | Portfolio lookup, as-of weight snapshots, portfolio → return series |
 | `optimization` | 8003 | sample covariance, factor covariance, optimization |
+| `regime` | 8004 | Regime score/posterior/policy for an as-of date, history, forward-return backtest |
 
 ## What's in `apps`
 
@@ -67,6 +71,7 @@ above.
 | Portfolio Performance | `portfolio_performance` |
 | VaR Backtest | `marketdata` + `risk` |
 | Portfolio Optimization | `optimization` + `marketdata` |
+| Regime | `regime` |
 
 ## Design decisions
 
@@ -142,12 +147,17 @@ pytest -m "not db"
 
 ## Status
 
-**In this repo:** the four services and three UI pages above, all with CI
+**In this repo:** the five services and four UI pages above, all with CI
 and known-answer test coverage.
 
+**A note on `regime`:** its history/backtest endpoints read the private
+system's actual production `regime_scores` table (populated by that
+system's own daily job). 
+
 **Exists in a separate, operating system — not in this public repo:**
-The original application includes regime classification, factor/PCA risk models,
-decision workflow and the What-If experiment
-engine; they aren't here because each depends
-on infrastructure (a factor risk store, an experiment tracking schema).
+The original application includes factor/PCA risk models, a decision
+workflow (which has its own, unrelated notion of "regime" — a
+behavioral-bias detector, not a market classifier), and the What-If
+experiment engine; they aren't here because each depends on
+infrastructure (a factor risk store, an experiment tracking schema).
 
