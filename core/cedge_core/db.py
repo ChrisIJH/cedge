@@ -31,8 +31,8 @@ def _resolve_credentials() -> tuple:
     """
     Returns (user, password, host, database).
 
-    Environment variables win. Falling back to the YAML file is a local-dev
-    convenience, not the intended production path.
+    Environment variables first. YAML file is a local-dev
+    convenience, not the intended production path. 
     """
     user = os.environ.get("CEDGE_DB_USER")
     password = os.environ.get("CEDGE_DB_PASSWORD")
