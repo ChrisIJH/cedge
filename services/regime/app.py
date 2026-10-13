@@ -89,6 +89,16 @@ def regime():
 
     result = compute_regime(px_macro)
 
+    unresolved = [name for name, value in (
+        ("vix_z", result.vix_z), ("dxy_z", result.dxy_z), ("ief_z", result.ief_z),
+        ("credit_z", result.credit_z), ("pca_factor", result.pca_factor)) if value is None]
+
+    if unresolved:
+        raise NotFound(
+            f"insufficient macro history for {as_of}: {len(px_macro.dropna())} aligned "
+            f"trading days (need 252); unresolved: {', '.join(unresolved)}"
+        )
+
     return jsonify({
         "as_of": as_of,
         "score": result.score,

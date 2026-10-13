@@ -4,6 +4,7 @@ Service-level tests for services/regime/app.py.
 Input validation runs before any query, so those stay in the CI subset.
 Anything hitting the DB carries the `db` marker.
 """
+import pandas as pd
 import pytest
 
 from services.regime import app as _module
@@ -55,6 +56,7 @@ def test_regime_returns_score_and_posterior(client):
     body = response.get_json()
     assert 0.0 <= body["score"] <= 100.0
     assert set(body["posterior"]) == {"risk_off", "soft_patch", "risk_on"}
+    assert all(body[k] is not None for k in ("vix_z", "dxy_z", "ief_z", "credit_z"))
 
 
 @pytest.mark.db
@@ -66,3 +68,14 @@ def test_backtest_returns_bucket_stats(client):
     body = response.get_json()
     assert body["bucket_stats"]
     assert body["n_days"] > 0
+
+
+def test_regime_insufficient_history_returns_404_not_neutral(client, monkeypatch):
+    dates = pd.bdate_range("2026-09-01", periods=10)
+    rows = [{"ticker": t, "date": d.date(), "adj_close_price": 100.0 + i}
+            for t in ["^VIX", "UUP", "HYG", "IEF"] for i, d in enumerate(dates)]
+    monkeypatch.setattr(_module, "get_macro_prices", lambda *a, **k: pd.DataFrame(rows))
+    response = client.get("/api/regime?as_of=2026-09-14")
+    assert response.status_code == 404
+    assert "insufficient macro history" in response.get_json()["error"]
+
