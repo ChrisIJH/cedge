@@ -65,7 +65,7 @@ class SqlPriceRepository:
                 p.adj_close_price
             from prices p
             join trading_calendar_nyse c 
-                on c.cal_date = p.price_date 
+                on c.cal_date = DATE(p.price_date)
             where p.ticker in :tickers
                 and date(p.price_date) >= :start_date
                 and date(p.price_date) <= :end_date
