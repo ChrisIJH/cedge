@@ -1,5 +1,5 @@
 """
-ervices/optimization/app.py
+services/optimization/app.py
 
 Portfolio optimization — allocate capital across given holdings to
 minimize risk subject to constraints like gross leverage, market beta cap,
@@ -23,7 +23,6 @@ from flask import Flask, jsonify, request
 app = Flask(__name__)
 
 _factor_repo = SqlFactorRiskRepository()
-_marketdata_api = os.getenv("CEDGE_MARKETDATA_API_URL", "http://localhost:8002")
 
 
 class BadRequest(Exception):
@@ -51,13 +50,6 @@ def _handle_not_found(exc):
 @app.errorhandler(ServiceError)
 def _handle_service_error(exc):
     return jsonify({"error": str(exc)}), 500
-
-
-def _json_safe(values):
-    """NaN → None for JSON serialization."""
-    import math
-    return [None if (isinstance(v, float) and math.isnan(v)) else float(v)
-            for v in np.asarray(values, dtype=float)]
 
 
 def _require_dict(payload, key):
@@ -194,16 +186,13 @@ def optimize():
     cov_method = _require_cov_method(payload)
     weights_dict = _require_weights(payload)
     tickers = list(weights_dict.keys())
-    w_prev = np.array([weights_dict[t] for t in tickers])
 
     # Build covariance matrix
     if cov_method == "sample":
         cov = _build_sample_cov(tickers, payload)
         aligned_tickers = tickers
-    elif cov_method == "factor_model":
-        cov, aligned_tickers = _build_factor_cov(tickers, payload)
     else:
-        raise BadRequest(f"unknown cov_method: {cov_method}")
+        cov, aligned_tickers = _build_factor_cov(tickers, payload)
 
     dropped = sorted(set(tickers) - set(aligned_tickers))
     w_prev = np.array([weights_dict[t] for t in aligned_tickers] )
@@ -243,7 +232,9 @@ def optimize():
 
     # Return
     return jsonify({
-        "weights": {tickers[i]: float(result.weights[i]) for i in range(len(aligned_tickers))},
+        # result.weights is ordered like aligned_tickers.
+        # may have dropped tickers.
+        "weights": {t: float(w) for t, w in zip(aligned_tickers, result.weights)},
         "status": result.status,
         "risk": float(result.risk),
         "turnover": float(result.turnover),
@@ -251,7 +242,7 @@ def optimize():
         "net_realized": float(result.net_realized),
         "solver": result.solver,
         "cov_method": cov_method,
-        "droped_tickers": dropped,
+        "dropped_tickers": dropped,
     })
 
 if __name__ == "__main__":

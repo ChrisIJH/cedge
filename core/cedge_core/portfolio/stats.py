@@ -10,6 +10,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+TRADING_DAYS = 252
 
 @dataclass(frozen=True)
 class PerformanceStats:
@@ -46,12 +47,16 @@ def compute_performance_stats(ret_series: pd.Series,
     """
     Annualized return/vol/Sharpe/max-drawdown for a daily return series.
 
-    No length guard by design: on an empty series this raises ZeroDivisionError,
-    matching the original calc_stats() behavior. Callers that need a zero-length
-    guard (like the original calc_return_stats()) must check before calling.
+    Raises ValueError on an empty series. Sharpe is NaN when annual_vol==0.
     """
-    annual_return = (1 + ret_series).prod() ** (252 / len(ret_series)) - 1
-    annual_vol = ret_series.std() * np.sqrt(252)
+    if len(ret_series) == 0:
+        msg = "empty return series"
+        if name:
+            msg += f" for {name!r}"
+        raise ValueError(msg)
+
+    annual_return = (1 + ret_series).prod() ** (TRADING_DAYS / len(ret_series)) - 1
+    annual_vol = ret_series.std() * np.sqrt(TRADING_DAYS)
     sharpe = annual_return / annual_vol if annual_vol > 0 else np.nan
     cum = (1 + ret_series).cumprod()
     total_return = cum.iloc[-1] - 1
@@ -68,13 +73,7 @@ def calc_stats(ret_series: pd.Series) -> dict:
 
 def calc_return_stats(ret_series: pd.Series, name: str) -> dict:
     """Calculate performance statistics for a return series. """
-    if len(ret_series) == 0:
-        return {'Strategy': name, 'Total Return': 0, 'Annual Return': 0,
-                'Annual Vol': 0, 'Sharpe': 0, 'Max Drawdown': 0}
-    result = compute_performance_stats(ret_series, name).to_strategy_dict()
-    if pd.isna(result['Sharpe']):
-        result['Sharpe'] = 0
-    return result
+    return compute_performance_stats(ret_series, name).to_strategy_dict()
 
 
 def build_yearly_breakdown(policy_rets: dict[str, pd.Series]) -> pd.DataFrame:

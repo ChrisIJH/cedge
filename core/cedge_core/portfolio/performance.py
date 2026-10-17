@@ -52,6 +52,8 @@ def build_performance(
         index='date', columns='ticker', values='adj_close_price', aggfunc='last')
 
     returns = pivot.pct_change().dropna(how='all')
+    if returns.empty:
+        return None
 
 
     long_tickers = weights_df[weights_df['position'] == 'LONG']['ticker'].tolist()

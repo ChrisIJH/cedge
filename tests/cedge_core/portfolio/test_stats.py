@@ -37,9 +37,6 @@ def _reference_calc_stats(ret_series: pd.Series) -> dict:
 
 def _reference_calc_return_stats(ret_series: pd.Series, name: str) -> dict:
     """Copy of the ORIGINAL calc_return_stats formula, kept here as an independent oracle."""
-    if len(ret_series) == 0:
-        return {'Strategy': name, 'Total Return': 0, 'Annual Return': 0,
-                'Annual Vol': 0, 'Sharpe': 0, 'Max Drawdown': 0}
     total_ret = (1 + ret_series).prod() - 1
     annual_ret = (1 + total_ret) ** (252 / len(ret_series)) - 1
     annual_vol = ret_series.std() * np.sqrt(252)
@@ -72,32 +69,21 @@ class TestComputePerformanceStats:
         for key in expected:
             assert actual[key] == pytest.approx(expected[key], abs=1e-9)
 
-    def test_zero_vol_sharpe_differs_between_policy_and_strategy_dict(self):
-        """
-        Edge case: when annual_vol == 0 (e.g. a series of all-zero returns),
-        the two ORIGINAL functions disagreed: calc_stats returned NaN,
-        calc_return_stats returned 0. Both behaviors must be preserved exactly.
-        """
+    def test_zero_vol_sharpe_is_nan_everywhere(self):
+        """A flat series has no volatility, so Sharpe is undefined — NaN, not 0.
+        (calc_return_stats used to coerce it to 0, which read as "no risk-adjusted
+        return" rather than "undefined".)"""
         ret = pd.Series([0.0] * 10, index=pd.date_range("2024-01-01", periods=10, freq="B"))
-        stats = compute_performance_stats(ret)
-        assert np.isnan(stats.to_policy_dict()["Sharpe"])
-        assert calc_return_stats(ret, "Flat")["Sharpe"] == 0
+        assert np.isnan(compute_performance_stats(ret).to_policy_dict()["Sharpe"])
+        assert np.isnan(calc_return_stats(ret, "Flat")["Sharpe"])
 
-    def test_calc_stats_raises_on_empty_series_like_original(self):
-        """
-        The ORIGINAL calc_stats had no length guard and raised ZeroDivisionError
-        on an empty series (252 / len(ret_series) with len == 0). Preserved as-is.
-        """
-        with pytest.raises(ZeroDivisionError):
-            calc_stats(pd.Series([], dtype=float))
-
-    def test_calc_return_stats_returns_zeros_on_empty_series(self):
-        result = calc_return_stats(pd.Series([], dtype=float), "Empty")
-        assert result == {
-            'Strategy': "Empty", 'Total Return': 0, 'Annual Return': 0,
-            'Annual Vol': 0, 'Sharpe': 0, 'Max Drawdown': 0,
-        }
-
+    def test_empty_series_raises_everywhere(self):
+        """No silent fallbacks: an empty series is an error, never a row of zeros."""
+        empty = pd.Series([], dtype=float)
+        with pytest.raises(ValueError, match="empty"):
+            calc_stats(empty)
+        with pytest.raises(ValueError, match="Empty"):
+            calc_return_stats(empty, "Empty")
 
 class TestBuildYearlyBreakdown:
     def test_two_policies_two_years(self):
