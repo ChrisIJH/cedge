@@ -14,6 +14,7 @@ Run locally:
     python services/portfolio_performance/app.py
 """
 import json
+import math
 
 import pandas as pd
 from cedge_core.portfolio.performance import build_performance
@@ -21,6 +22,10 @@ from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
+def _nan_to_none(row: dict) -> dict:
+    """json.dumps would emit a NaN, which is not valid JSON."""
+    return {k: (None if isinstance(v, float) and math.isnan(v) else v) 
+            for k, v in row.items()}
 
 @app.route("/healthz", methods=["GET"])
 def healthz():
@@ -47,7 +52,7 @@ def factor_portfolio_performance():
 
     return jsonify({
         "cum_returns": cum_returns.to_dict(orient="records"),
-        "stats": result["stats"],
+        "stats": [_nan_to_none(row) for row in result["stats"]],
     })
 
 
