@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from cedge_core.marketdata.prices import to_wide
+from cedge_core.marketdata.returns import to_returns
 from cedge_core.portfolio.prices import PriceRepository, SqlPriceRepository
 from cedge_core.portfolio.stats import calc_return_stats
 
@@ -48,10 +50,9 @@ def build_performance(
     if prices_df.empty:
         return None
 
-    pivot = prices_df.pivot_table(
-        index='date', columns='ticker', values='adj_close_price', aggfunc='last')
-
-    returns = pivot.pct_change().dropna(how='all')
+    # dropna="all": legs tolerate tickers with different histories; _leg_return
+    # averages over the tickers that have a return on each day.
+    returns = to_returns(to_wide(prices_df, value='adj_close_price'), "simple", dropna="all")
     if returns.empty:
         return None
 
@@ -88,8 +89,7 @@ def build_performance(
 
     spy_df = repo.get_daily_prices(['SPY'], start_date, end_date )
     if not spy_df.empty:
-        spy_pivot = spy_df.pivot_table(index='date', columns='ticker', values='adj_close_price', aggfunc='last')
-        spy_ret = spy_pivot['SPY'].pct_change().dropna()
+        spy_ret = to_returns(to_wide(spy_df, value='adj_close_price')['SPY'], "simple")
         cum_returns['SPY'] = (1 + spy_ret).cumprod() - 1
         stats.append(calc_return_stats(spy_ret, 'SPY'))
 

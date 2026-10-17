@@ -86,3 +86,25 @@ class TestToReturnsValidation:
     def test_unknown_method_raises(self):
         with pytest.raises(ValueError, match="Unknown method"):
             to_returns(_prices_frame(), method="geometric")
+
+
+
+class TestToReturnsDropna:
+    def _ragged(self) -> pd.DataFrame:
+        idx = pd.date_range("2025-01-01", periods=4, freq="B")
+        return pd.DataFrame({"AAA": [100.0, 110.0, 121.0, 132.0],
+                             "BBB": [np.nan, np.nan, 25.0, 50.0]}, index=idx)
+
+    def test_any_drops_every_row_with_a_gap(self):
+        out = to_returns(self._ragged())              # default dropna="any"
+        assert len(out) == 1                          # only the last day has both returns
+
+    def test_all_keeps_rows_where_some_ticker_has_a_return(self):
+        out = to_returns(self._ragged(), dropna="all")
+        assert len(out) == 3
+        assert np.isnan(out["BBB"].iloc[0])
+        assert out["AAA"].iloc[0] == pytest.approx(0.10, abs=1e-12)
+
+    def test_unknown_dropna_raises(self):
+        with pytest.raises(ValueError, match="Unknown dropna"):
+            to_returns(self._ragged(), dropna="never")
