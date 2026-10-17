@@ -1,90 +1,46 @@
 """
 cedge_core/portfolio/prices.py
 
-Imperative Shell - the only file in ch_api/portfolio that connects to the DB.
+Compatibility shim. The SQL that used to live here moved to
+cedge_core.marketdata.prices (the one place that reads the prices table);
+this module keeps the `get_daily_prices` port that portfolio/performance.py
+and its tests are written against.
 
-
-
-Previously using abstract method, but change it to duck typing.
-```
-from abc import ABC, abstractmethod
-
-class PriceRepository(ABC):
-    @abstractmethod
-    def get_daily_prices(self, tickers: list[str], start_date: str, end_date: str,
-                          instrument_type: str = 'stock') -> pd.DataFrame:
-        ...
-
-
-class SqlPriceRepository(PriceRepository):
-    def get_daily_prices(self, tickers: list[str], 
-                         start_date: str,
-                         end_date: str,
-                         instrument_type: str = 'stock') -> pd.DataFrame:
-
-        engine = ch_engine()
-        ...
-```
-Uses typing.Protocol (structural typing) rather than an ABC: a test double
-just needs a matching get_daily_prices method, without importing or
-inheriting from this module. The trade-off is that a missing implementation
-isn't caught at instantiation time the way an ABC would catch it — it
-surfaces later as an AttributeError at call time.
-
+New code should take a cedge_core.marketdata.prices.PriceRepository instead.
 """
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Optional, Protocol
 
 import pandas as pd
-from sqlalchemy import text
+from sqlalchemy.engine import Engine
 
-from cedge_core.db import ch_engine
+from cedge_core.marketdata.prices import SqlPriceRepository as _SqlPrices
 
 
 class PriceRepository(Protocol):
-    def get_daily_prices(self, 
-                         tickers: list[str], 
-                         start_date: str, 
+    def get_daily_prices(self,
+                         tickers: list[str],
+                         start_date: str,
                          end_date: str) -> pd.DataFrame:
+        """Long form: columns [ticker, date, adj_close_price]."""
         ...
 
 
-
 class SqlPriceRepository:
-    """MySQL connection"""
+    def __init__(self, engine: Optional[Engine] = None):
+        self._prices = _SqlPrices(engine)
 
-    def get_daily_prices(self, tickers: list[str], 
+    def get_daily_prices(self, tickers: list[str],
                          start_date: str,
                          end_date: str,
                          ) -> pd.DataFrame:
+        return self._prices.get_prices(tickers, start_date, end_date, field="adj_close")
 
-        engine = ch_engine()
-        q = text("""
-            select p.ticker, DATE(p.price_date) as date, 
-                p.adj_close_price
-            from prices p
-            join trading_calendar_nyse c 
-                on c.cal_date = DATE(p.price_date)
-            where p.ticker in :tickers
-                and date(p.price_date) >= :start_date
-                and date(p.price_date) <= :end_date
-                and p.instrument_type NOT IN ('factor','index','mutualfund')
-                and p.adj_close_price is not null
-                and c.is_trading_day=1
-            order by p.ticker, date
-        """)
-
-        with engine.begin() as conn:
-            return pd.read_sql(q, conn, 
-                               params = {'tickers': list(tickers),
-                                         'start_date': start_date,
-                                         'end_date': end_date,
-                                         })
 
 _default_repo = SqlPriceRepository()
 
+
 def get_daily_prices(tickers: list[str], start_date: str, end_date: str,
-                     instrument_type: str = 'stock',
-                     repo: PriceRepository = _default_repo):
+                     repo: PriceRepository = _default_repo) -> pd.DataFrame:
     return repo.get_daily_prices(tickers, start_date, end_date)

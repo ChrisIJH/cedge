@@ -12,6 +12,7 @@ from typing import Dict, Optional
 
 import pandas as pd
 
+from cedge_core.marketdata.prices import to_wide
 from cedge_core.regime.policy import policy_from_posterior
 from cedge_core.regime.posterior import mixture_posterior
 from cedge_core.regime.score import ScoreWeights, composite_score, pc1_score
@@ -76,6 +77,4 @@ def compute_regime(px_macro: pd.DataFrame,
 def prices_to_wide(long_prices: pd.DataFrame) -> pd.DataFrame:
     """get_macro_prices()'s long-form output (ticker, date, adj_close_price)
     -> wide (index=date, columns=ticker), as compute_regime expects."""
-    df = long_prices.drop_duplicates(subset=["date", "ticker"])
-    return df.pivot(index="date", columns="ticker",
-                    values="adj_close_price").sort_index()
+    return to_wide(long_prices, value="adj_close_price")
