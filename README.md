@@ -45,11 +45,34 @@ on screen arrives over HTTP.
 
 | Module | What it does |
 |---|---|
-| `risk/` | VaR & Expected Shortfall — parametric and Filtered Historical Simulation, with Kupiec / Christoffersen / Acerbi–Székely backtests |
+| `risk/` | VaR & Expected Shortfall — parametric and Filtered Historical Simulation, with Kupiec / Christoffersen / Acerbi–Szekely backtests |
 | `portfolio/` | Long/short performance, turnover, rolling statistics |
 | `marketdata/` | Prices, returns, portfolio definitions, weight normalization |
 | `optimization/` | covariance, mean_variance|
 | `regime/` | Macro regime score/posterior/policy (fixed-mixture Bayesian), history, forward-return backtest |
+| `model_portfolio/` | Model portfolio implementation: model weights -> whole-share orders across many accounts, with input validation, per-run reconciliation, idempotent reruns, and band calibration |
+
+## Where each module sits in the investment cycle
+
+| Stage | Question | In this repo | Status |
+|---|---|---|---|
+| 1. Data | What are prices and holdings today? | `marketdata/prices.py` (one loader for the `prices` table) | Ingestion lives in a separate private repo |
+| 2. Market view | What regime are we in? | `regime/` | In repo |
+| 3. Expected returns | What will outperform? | — | Not in this repo |
+| 4. Risk model | How do assets move together? | `optimization/covariance.py`, `marketdata/factor_risk.py` | Factor estimation not yet ported |
+| 5. Construction | What weights should the book hold? | `optimization/mean_variance.py`, `regime/policy.py` | `policy.py` not yet wired to the optimizer |
+| 6. Implementation | Which orders put thousands of accounts on the model? | `model_portfolio/` | In repo, run on synthetic accounts at real closes |
+| 7. Risk monitoring | How much can we lose? | `risk/` | In repo |
+| 8. Performance & attribution | What did we earn, and why? | `portfolio/` | Measurement only; no attribution |
+| 9. Review & feedback | What if we had decided differently? | — | What-If and decision workflow exist in the private system |
+
+Inside `core`, `model_portfolio` sits downstream: it may use `marketdata`,
+`optimization`, `regime` and `portfolio`; nothing imports `model_portfolio`.
+
+Known layout debt, to be fixed when each area is next touched:
+`portfolio/` is really performance measurement (-> `performance/`), the risk
+model is spread across `optimization/` and `marketdata/` (-> `factor/`), and
+`marketdata/` should hold loaders only.
 
 ## What's in `services`
 
@@ -75,7 +98,7 @@ above.
 
 ## Design decisions
 
-**Functional core / imperative shell, applied twice.** `portfolio/prices.py`
+**Functional core / imperative shell.** `marketdata/prices.py`
 and `marketdata/portfolios.py` each define a `Protocol` (structural typing,
 not an ABC) plus one SQL-backed implementation — `SqlPriceRepository`,
 `SqlPortfolioRepository`. The class is the only thing in its module that
@@ -91,13 +114,31 @@ importing from the old module path. `analytics.py` re-exports the new
 functions under the old name — the internal structure changed without
 breaking anything that depended on it.
 
-
 **Fixed-weight views are labeled as such.** `services/marketdata`'s
 `/api/portfolio_returns` applies one weight snapshot across an entire date
 range — useful for asking "how would this book have behaved," but that is
 look-ahead in the strict sense (today's position applied to years of past
 returns) if mistaken for a rebalanced backtest. The endpoint's response
 and the VaR Backtest page both say so explicitly.
+
+**Model portfolio runs are reproducible and checkable.** Each run gets a
+`run_id`: a hash of the model versions and weights, the rules, the code
+version, the prices and every account's holdings. Changing any of them —
+one price by a cent, one account, the band — gives a different id. The
+hash cannot recreate the inputs, so `scripts/run_mass_demo.py` saves them
+next to the results (`inputs.json`, `prices.json`, `holdings.json`);
+`--replay runs/<run_id>` recomputes the id from those files, reruns, and
+checks the orders match. Every run also proves it lost no account:
+`target = processed + exceptions + skipped`, or the run is marked
+`FAILED_RECONCILIATION`.
+
+**Share counts stay integers.** Orders round toward zero, a ticker with a
+zero target is sold as exactly the shares held, and quantities are never
+re-derived from dollar amounts — `(0 − 352 × 841.89) / 841.89` evaluates to
+`−351.99999999999994`, which truncates to one share left behind. Cash left
+over by flooring scaled buys is spent one share at a time, so a rerun at
+the same prices trades nothing. The engine computes in float64; money is
+rounded to the cent only where it is written out.
 
 ## Testing approach
 
@@ -137,6 +178,14 @@ streamlit run apps/quant_ui/app.py
 
 Reads service URLs from `CEDGE_<SERVICE>_API_URL` environment variables,
 defaulting to `localhost` on each service's port above.
+
+## Running the model portfolio lab
+
+```bash
+python scripts/run_mass_demo.py --asof 2026-10-16             # new run → runs/<run_id>/
+python scripts/run_mass_demo.py --asof 2026-10-16 --band 0.03  # same accounts, another band
+python scripts/run_mass_demo.py --replay runs/<run_id>         # rerun from saved inputs
+```
 
 ## Local development
 
