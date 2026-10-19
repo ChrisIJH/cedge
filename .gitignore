@@ -14,3 +14,4 @@ nohup.out
 *.pkl
 .mypy_cache/
 .ruff_cache/
+runs/
