@@ -1,6 +1,6 @@
-"""Band sensitivity: how many accounts each tolerance band would trade, and at what turnover."""
+"""Monitoring views over a book: band sensitivity, and one account's before/after detail."""
 from dataclasses import replace
-from typing import Mapping, Sequence
+from typing import Mapping, Sequence, Tuple
 
 import pandas as pd
 
@@ -10,6 +10,7 @@ from cedge_core.model_portfolio.trades import (
     EXC_TOO_SMALL,
     TRADED,
     Rules,
+    TradeResult,
     generate_trades,
 )
 
@@ -38,3 +39,32 @@ def band_table(accounts: Sequence[Account], models: Mapping[str, ModelPortfolio]
                                    if traded else 0.0),
         })
     return pd.DataFrame(rows)
+
+def account_detail(account: Account, model: Mapping[str, float], prices: Mapping[str, float],
+                   rules: Rules) -> Tuple[TradeResult, pd.DataFrame]:
+    """One row per ticker plus a CASH row: shares, weights and drift before and after
+    the orders this run would send. Account inputs are assumed validated."""
+    res = generate_trades(account.shares, account.cash, model, prices, rules)
+    total = res.total_value
+    rows = []
+    for t in sorted(res.post_shares):
+        before = float(account.shares.get(t, 0.0))
+        after = res.post_shares[t]
+        target = model.get(t, 0.0) * (1 - rules.cash_buffer)
+        rows.append({
+            "ticker": t, "price": prices[t],
+            "shares_before": before, "order": res.trades.get(t, 0.0), "shares_after": after,
+            "weight_before": before * prices[t] / total, "target": target,
+            "weight_after": after * prices[t] / total,
+        })
+    rows.append({
+        "ticker": "CASH", "price": 1.0,
+        "shares_before": account.cash, "order": res.post_cash - account.cash,
+        "shares_after": res.post_cash,
+        "weight_before": account.cash / total, "target": rules.cash_buffer,
+        "weight_after": res.post_cash / total,
+    })
+    table = pd.DataFrame(rows)
+    table["drift_before"] = table["weight_before"] - table["target"]
+    table["drift_after"] = table["weight_after"] - table["target"]
+    return res, table

@@ -12,10 +12,9 @@ ALPHA CONVENTION
         method='fhs'        -> "alpha": 0.01        (tail probability)
 
 
-Run locally:
-    python services/risk/app.py
+Run locally (from the repo root):
+    python -m services.risk.app
 """
-import math
 import os
 
 import numpy as np
@@ -24,26 +23,14 @@ from cedge_core.risk.fhs_var import rolling_fhs_es, rolling_fhs_var
 from cedge_core.risk.param_var import rolling_parametric_var_confidence
 from cedge_core.risk.var_backtest_model import run_backtest
 from cedge_core.risk.var_es_model import full_backtest
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify
+
+from services.common import BadRequest, json_safe, register_error_handlers, require_json
 
 app = Flask(__name__)
+register_error_handlers(app)
 
 VAR_CONVENTION = "VaR/ES are positive loss numbers; larger = riskier"
-
-class BadRequest(Exception):
-    """A client-side input problem. Carries the message sent back as 400."""
-
-@app.errorhandler(BadRequest)
-def _handle_bad_request(exc):
-    return jsonify( {'error': str(exc)}), 400
-
-def _to_json_safe(values):
-    """NaN -> None, numpy scalar -> Python float"""
-    out = []
-    for v in np.asarray(values, dtype=float):
-        out.append(None if math.isnan(v) else float(v))
-    return out
-
 
 
 def _require_returns(payload):
@@ -86,17 +73,9 @@ def _require_window(payload, n_obs):
         )
     return window
 
-@app.route("/healthz", methods=['GET'])
-def healthz():
-    """Health Check"""
-    return jsonify( {"status": "ok"}), 200
-
 @app.route("/api/var_es", methods=['POST'])
 def var_es():
-    payload = request.get_json(silent=True)
-    if payload is None:
-        raise BadRequest("request body must be JSON")
-
+    payload = require_json()
     returns = _require_returns(payload)
     window = _require_window(payload, len(returns))
     method = payload.get('method', 'parametric')
@@ -127,17 +106,14 @@ def var_es():
     return jsonify({
         "method": method,
         "params": params,
-        "var": _to_json_safe(var_values),
-        "es": _to_json_safe(es_values),
+        "var": json_safe(var_values),
+        "es": json_safe(es_values),
         "convention": VAR_CONVENTION,
     })
 
 @app.route("/api/var_backtest", methods=['POST'])
 def var_backtest():
-    payload = request.get_json(silent=True)
-    if payload is None:
-        raise BadRequest("request body must be JSON")
-
+    payload = require_json()
     returns = _require_returns(payload)
     alpha = _require_unit_interval(payload, "alpha", 0.05)
 
@@ -189,9 +165,9 @@ def _cell_to_json(cell):
         "method": cell["method"],
         "alpha": cell["alpha"],
         "eval_idx": [int(i) for i in cell["eval_idx"]],
-        "r_eval": _to_json_safe(cell["r_eval"]),
-        "var": _to_json_safe(cell["var"]),
-        "es": _to_json_safe(cell["es"]),
+        "r_eval": json_safe(cell["r_eval"]),
+        "var": json_safe(cell["var"]),
+        "es": json_safe(cell["es"]),
         "breaches": [int(b) for b in cell["breaches"]],
         "kupiec": cell["kupiec"],
         "christoffersen": cell["christoffersen"],
@@ -211,10 +187,7 @@ def full_backtest_route():
     {(method, alpha): cell} dict into a JSON array — object keys can't be
     tuples.
     """
-    payload = request.get_json(silent=True)
-    if payload is None:
-        raise BadRequest("request body must be JSON")
-
+    payload = require_json()
     returns = _require_returns(payload)
     window = _require_window(payload, len(returns))
 

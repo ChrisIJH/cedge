@@ -9,12 +9,10 @@ into something the risk service can score.
 Run locally:
     python services/marketdata/app.py
 """
-import math
 import os
 from typing import Optional
 
 import numpy as np
-import pandas as pd
 from cedge_core.db import ch_engine
 from cedge_core.estimators import realized_beta
 from cedge_core.marketdata.portfolios import SqlPortfolioRepository
@@ -23,76 +21,22 @@ from cedge_core.marketdata.returns import to_returns
 from cedge_core.marketdata.weights import portfolio_returns
 from flask import Flask, jsonify, request
 
+from services.common import (
+    BadRequest,
+    NotFound,
+    json_safe,
+    register_error_handlers,
+    require_date,
+    require_json,
+    require_tickers,
+    require_weights,
+)
+
 app = Flask(__name__)
+register_error_handlers(app)
 _portfolio_repo = SqlPortfolioRepository()
 DEFAULT_MARKET = "SPY"
 
-class BadRequest(Exception):
-    """A Client-side input problem."""
-
-class NotFound(Exception):
-    """The request is well-formed but the data not available"""
-
-@app.errorhandler(BadRequest)
-def _handle_bad_request(exc):
-    return jsonify( {'error': str(exc)}), 400
-
-@app.errorhandler(NotFound)
-def _handle_not_found(exc):
-    return jsonify( {'error': str(exc)}), 404
-
-def _json_safe(values):
-    """NaN -> None"""
-    return [None if math.isnan(v) else float(v)
-            for v in np.asarray(values, dtype=float)]
-
-
-def _require_date(payload, key):
-    value = payload.get(key)
-    if not value:
-        raise BadRequest(f"'{key}' is required (YYYY-MM-DD)")
-    try:
-        pd.Timestamp(value)
-    except ValueError:
-        raise BadRequest(f"'{key}' is not a date: {value!r}")
-    return str(value)
-
-
-def _require_weights(payload):
-    weights = payload.get("weights")
-    if not isinstance(weights, dict) or not weights:
-        raise BadRequest("'weights' must be a non-empty object of {ticker: weight}")
-
-    cleaned = {}
-    for ticker, weight in weights.items():
-        ticker = str(ticker).strip().upper()
-        if not ticker:
-            raise BadRequest("'weights' contains an empty ticker")
-        try:
-            weight = float(weight)
-        except (TypeError, ValueError):
-            raise BadRequest(f"weight for {ticker!r} is not a number: {weight!r}")
-        if not math.isfinite(weight):
-            raise BadRequest(f"weight for {ticker!r} must be finite, got {weight}")
-        cleaned[ticker] = weight
-    return cleaned
-
-def _require_tickers(payload):
-    tickers = payload.get('tickers')
-    if not isinstance(tickers, list) or not tickers:
-        raise BadRequest("'tickers' must be a non-empty list of strings")
-    cleaned = []
-    for ticker in tickers:
-        ticker = str(ticker).strip().upper()
-        if not ticker:
-            raise BadRequest("'tickers' contains an empty ticker")
-        cleaned.append(ticker)
-    return cleaned
-
-@app.route("/healthz", methods=["GET"])
-def healthz():
-    """Health Check"""
-    return jsonify({"status": "ok"}), 200
 
 @app.route("/api/portfolios", methods=['GET'])
 def portfolios():
@@ -151,13 +95,11 @@ def returns():
     The market series is loaded on its own full history so beta is estimated
     over every day both series exist, independent of the book's coverage.
     """
-    payload = request.get_json(silent=True)
-    if payload is None:
-        raise BadRequest("request body must be JSON")
+    payload = require_json()
 
-    weights = _require_weights(payload)
-    start_date = _require_date(payload, "start_date")
-    end_date = _require_date(payload, "end_date")
+    weights = require_weights(payload)
+    start_date = require_date(payload, "start_date")
+    end_date = require_date(payload, "end_date")
     market = str(payload.get("market", DEFAULT_MARKET)).strip().upper()
 
     tickers = list(weights)
@@ -191,7 +133,7 @@ def returns():
 
     return jsonify({
         "dates": [str(d) for d in dates],
-        "returns": _json_safe(series),
+        "returns": json_safe(series),
         "n_observations": len(series),
         "gross": exposure["gross"],
         "net": exposure["net"],
@@ -206,13 +148,11 @@ def asset_returns():
     Distinct from /api/portfolio_returns, which aggregates to one series
     via weights — this returns every ticker's own series.
     """
-    payload = request.get_json(silent=True)
-    if payload is None:
-        raise BadRequest("request boty must be JSON")
+    payload = require_json()
 
-    tickers = _require_tickers(payload)
-    start_date = _require_date(payload, "start_date")
-    end_date = _require_date(payload, 'end_date')
+    tickers = require_tickers(payload)
+    start_date = require_date(payload, "start_date")
+    end_date = require_date(payload, 'end_date')
 
     panel = load_prices_adjclose(
         ch_engine(), sorted(set(tickers)), start_date, end_date
@@ -234,7 +174,7 @@ def asset_returns():
         {
             "dates": [str(d) for d in returns.index],
             "tickers": tickers,
-            "returns": {t: _json_safe(returns[t]) for t in tickers},
+            "returns": {t: json_safe(returns[t]) for t in tickers},
         }
     )
     
