@@ -26,11 +26,13 @@ graph LR
     A --> S3[services/marketdata<br/>:8002]
     A --> S4[services/optimization<br/>:8003]
     A --> S5[services/regime<br/>:8004]
+    A --> S6[services/model_portfolio<br/>:8005]
     S1 --> C[core/cedge_core<br/>pure quant logic]
     S2 --> C
     S3 --> C
     S4 --> C
     S5 --> C
+    S6 --> C
     C --> D[(MySQL)]
     style C fill:#2d5016,color:#fff
 ```
@@ -83,7 +85,7 @@ model is spread across `optimization/` and `marketdata/` (-> `factor/`), and
 | `marketdata` | 8002 | Portfolio lookup, as-of weight snapshots, portfolio → return series |
 | `optimization` | 8003 | sample covariance, factor covariance, optimization |
 | `regime` | 8004 | Regime score/posterior/policy for an as-of date, history, forward-return backtest |
-
+| `model_portfolio` | 8005 | One rebalance run over a seeded synthetic book at real closes, band comparison, account detail, account-vs-benchmark attribution |
 ## What's in `apps`
 
 `quant_ui` (Streamlit, port 8501) — a thin client over the services
@@ -95,6 +97,7 @@ above.
 | VaR Backtest | `marketdata` + `risk` |
 | Portfolio Optimization | `optimization` + `marketdata` |
 | Regime | `regime` |
+| Model Portfolio | `model_portfolio` |
 
 ## Design decisions
 
@@ -165,9 +168,15 @@ docker run -p 8001:8000 cedge-risk
 curl localhost:8001/healthz
 ```
 
-`risk` and `optimization` have no database dependency and runs standalone. `portfolio_performance`
-and `marketdata` need `CEDGE_DB_USER` / `CEDGE_DB_PASSWORD` /
+`risk` and `optimization` have no database dependency and runs standalone. `portfolio_performance`, `optimization`, `regime`, `model_portfolio` and `marketdata` need `CEDGE_DB_USER` / `CEDGE_DB_PASSWORD` /
 `CEDGE_DB_HOST` (see `core/cedge_core/db.py`).
+
+Without Docker, from the repo root (services share `services/common.py`, so
+they run as modules):
+
+```bash
+PORT=8005 python -m services.model_portfolio.app
+```
 
 ## Running the UI
 

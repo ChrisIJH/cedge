@@ -43,6 +43,8 @@ jobs:
           pip install --no-cache-dir -r services/risk/requirements.txt 
           pip install --no-cache-dir -r services/marketdata/requirements.txt
           pip install --no-cache-dir -r services/optimization/requirements.txt
+          pip install --no-cache-dir -r services/regime/requirements.txt
+          pip install --no-cache-dir -r services/model_portfolio/requirements.txt
       - name: Run tests (excluding DB-dependent)
         run: pytest -m "not db"
 
@@ -54,7 +56,7 @@ jobs:
       packages: write
     strategy:
       matrix:
-        service: [portfolio_performance, risk, marketdata, optimization]
+        service: [portfolio_performance, risk, marketdata, optimization, regime, model_portfolio]
     steps:
       - uses: actions/checkout@v4
 
