@@ -4,8 +4,8 @@ services/regime/app.py
 Macro regime score, posterior, and policy — plus history and a backtest
 against what CHResearch's daily cron actually produced.
 
-Run locally:
-    python services/regime/app.py
+Run locally (from the repo root):
+    python -m services.regime.app
 """
 import os
 
@@ -19,39 +19,18 @@ from cedge_core.regime.model import compute_regime, prices_to_wide
 from cedge_core.regime.prices import get_macro_prices
 from flask import Flask, jsonify, request
 
+from services.common import (
+    BadRequest,
+    NotFound,
+    register_error_handlers,
+    require_date_arg,
+)
+
 app = Flask(__name__)
+register_error_handlers(app)
 
 MACRO_TICKERS = ["^VIX", "UUP", "HYG", "IEF"]
 WARMUP_DAYS = 400  # >= 252-day z-score window + buffer, matches CHResearch's cron
-
-
-class BadRequest(Exception):
-    """A client-side input problem."""
-
-
-class NotFound(Exception):
-    """The request is well-formed but the data not available."""
-
-
-@app.errorhandler(BadRequest)
-def _handle_bad_request(exc):
-    return jsonify({"error": str(exc)}), 400
-
-
-@app.errorhandler(NotFound)
-def _handle_not_found(exc):
-    return jsonify({"error": str(exc)}), 404
-
-
-def _require_date_arg(key):
-    value = request.args.get(key)
-    if not value:
-        raise BadRequest(f"'{key}' is required (YYYY-MM-DD)")
-    try:
-        pd.Timestamp(value)
-    except ValueError:
-        raise BadRequest(f"'{key}' is not a date: {value!r}")
-    return str(value)
 
 
 def _parse_horizons():
@@ -65,17 +44,11 @@ def _parse_horizons():
     return horizons
 
 
-@app.route("/healthz", methods=["GET"])
-def healthz():
-    """Health check."""
-    return jsonify({"status": "ok"}), 200
-
-
 @app.route("/api/regime", methods=["GET"])
 def regime():
     """Regime score/posterior/policy for a single as-of date, computed
     fresh from prices (not read from CHResearch's regime_scores table)."""
-    as_of = _require_date_arg("as_of")
+    as_of = require_date_arg("as_of")
     start = str(pd.Timestamp(as_of) - pd.Timedelta(days=WARMUP_DAYS))[:10]
 
     long_prices = get_macro_prices(MACRO_TICKERS, start, as_of)
@@ -116,8 +89,8 @@ def regime():
 def history():
     """CHResearch's precomputed daily regime_scores, as actually written
     by the production cron -- not recomputed with cedge's core."""
-    start = _require_date_arg("start")
-    end = _require_date_arg("end")
+    start = require_date_arg("start")
+    end = require_date_arg("end")
     score_name = request.args.get("score_name", "macro_v1")
 
     df = get_regime_history(start, end, score_name)
@@ -134,8 +107,8 @@ def backtest():
     label. Validates what was ACTUALLY used in production -- see
     RegimeScoreRepository docstring on the credit sign-invariance bug
     fixed in cedge's core but not (yet) in CHResearch's ch_metric.py."""
-    start = _require_date_arg("start")
-    end = _require_date_arg("end")
+    start = require_date_arg("start")
+    end = require_date_arg("end")
     score_name = request.args.get("score_name", "macro_v1")
     horizons = _parse_horizons()
 

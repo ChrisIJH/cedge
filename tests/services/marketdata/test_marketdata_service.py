@@ -71,7 +71,8 @@ def test_weights_are_normalized_to_uppercase():
     Calling the validator directly — the endpoint would need a database to
     get any further than this.
     """
-    cleaned = _module._require_weights({"weights": {" mtum ": 1, "spy": -1}})
+    from services.common import require_weights
+    cleaned = require_weights({"weights": {" mtum ": 1, "spy": -1}})
     assert cleaned == {"MTUM": 1.0, "SPY": -1.0}
 
 
