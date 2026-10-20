@@ -63,7 +63,7 @@ on screen arrives over HTTP.
 | 5. Construction | What weights should the book hold? | `optimization/mean_variance.py`, `regime/policy.py` | `policy.py` not yet wired to the optimizer |
 | 6. Implementation | Which orders put thousands of accounts on the model? | `model_portfolio/` | In repo, run on synthetic accounts at real closes |
 | 7. Risk monitoring | How much can we lose? | `risk/` | In repo |
-| 8. Performance & attribution | What did we earn, and why? | `portfolio/` | Measurement only; no attribution |
+| 8. Performance & attribution | What did we earn, and why? | `portfolio/`, `model_portfolio/attribution.py` | L/S measurement; for model portfolios, account vs benchmark split into allocation / selection (Brinson-Fachler) and cash / rounding (implementation) against illustrative benchmarks |
 | 9. Review & feedback | What if we had decided differently? | — | What-If and decision workflow exist in the private system |
 
 Inside `core`, `model_portfolio` sits downstream: it may use `marketdata`,
