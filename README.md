@@ -1,15 +1,15 @@
 # Cedge
 
-Cedge is a quant research platform for long/short portfolio analysis —
-performance attribution, VaR/ES risk, and their backtests — built as three
-independent layers: `core` (pure calculation), `services` (HTTP APIs),
-`apps` (Streamlit UI). Calculation logic in `core` never imports an HTTP
-or UI framework and never sees a database connection except behind an
-injectable repository; each layer can be tested, deployed, and understood
-on its own.
+Cedge is a portfolio analytics platform that covers the investment cycle from
+market regime and risk to model-portfolio implementation and attribution.
+Its calculations are deployed as containerized HTTP services on a private
+server, with a Streamlit front end, over a MySQL price store fed by a
+separate ingestion system. The source is published for review: it is not
+packaged for standalone use, because running it needs that private
+infrastructure (database, market-data vendor and ingestion jobs).
 
-This repo is not written from scratch — it's extracted and rewritten from
-several years of research code across three private repos (a core quant
+This repo is not written from scratch — it's extracted and rewritten from 
+years of research code across three private repos (a core quant
 engine, a Flask risk API, and a Streamlit PM workspace). What's public is
 the part that's been pulled out, given a real boundary, and covered with
 tests — not everything that exists, but everything that's been made to
@@ -43,16 +43,30 @@ connection except behind an injectable repository (see Design decisions).
 `apps` never imports `core` or opens a database connection — every number
 on screen arrives over HTTP.
 
-## What's in `core`
 
-| Module | What it does |
-|---|---|
-| `risk/` | VaR & Expected Shortfall — parametric and Filtered Historical Simulation, with Kupiec / Christoffersen / Acerbi–Szekely backtests |
-| `portfolio/` | Long/short performance, turnover, rolling statistics |
-| `marketdata/` | Prices, returns, portfolio definitions, weight normalization |
-| `optimization/` | covariance, mean_variance|
-| `regime/` | Macro regime score/posterior/policy (fixed-mixture Bayesian), history, forward-return backtest |
-| `model_portfolio/` | Model portfolio implementation: model weights -> whole-share orders across many accounts, with input validation, per-run reconciliation, idempotent reruns, and band calibration |
+## Start here
+
+- **[Risk — `core/cedge_core/risk/`](core/cedge_core/risk/)** — rolling VaR and
+  Expected Shortfall (normal with sample or EWMA volatility, historical, and
+  filtered historical simulation), with three backtests: Kupiec for the
+  breach rate, Christoffersen for breach clustering, and Acerbi–Székely for
+  whether ES matches the size of losses.
+- **[Regime — `core/cedge_core/regime/`](core/cedge_core/regime/)** — a daily
+  macro regime score (0–100) from rolling z-scores, mapped to risk-off /
+  soft-patch / risk-on probabilities under a fixed three-component mixture,
+  with a forward-return backtest against SPY.
+- **[Model portfolio — `core/cedge_core/model_portfolio/`](core/cedge_core/model_portfolio/README.md)**
+  — model weights to whole-share orders across 1,010 synthetic accounts at
+  real closes, with per-run reconciliation, replayable run ids, and
+  account-vs-benchmark attribution.
+
+Inside `core`, `model_portfolio/` sits downstream: it uses `optimization/`,
+`marketdata/`, `regime/` and `portfolio/`, and no other package imports
+`model_portfolio/`.
+
+Layout clean-up, done when each area is next touched: `portfolio/` →
+`performance/`, the risk model gathered into `factor/`, and `marketdata/`
+reduced to loaders.
 
 ## Where each module sits in the investment cycle
 
@@ -75,6 +89,17 @@ Known layout debt, to be fixed when each area is next touched:
 `portfolio/` is really performance measurement (-> `performance/`), the risk
 model is spread across `optimization/` and `marketdata/` (-> `factor/`), and
 `marketdata/` should hold loaders only.
+
+## What's in `core`
+
+| Module | What it does |
+|---|---|
+| `risk/` | VaR & Expected Shortfall — parametric and Filtered Historical Simulation, with Kupiec / Christoffersen / Acerbi–Szekely backtests |
+| `portfolio/` | Long/short performance, turnover, rolling statistics |
+| `marketdata/` | Prices, returns, portfolio definitions, weight normalization |
+| `optimization/` | covariance, mean_variance|
+| `regime/` | Macro regime score/posterior/policy (fixed-mixture Bayesian), history, forward-return backtest |
+| `model_portfolio/` | Model portfolio implementation: model weights -> whole-share orders across many accounts, with input validation, per-run reconciliation, idempotent reruns, and band calibration |
 
 ## What's in `services`
 
@@ -128,7 +153,7 @@ and the VaR Backtest page both say so explicitly.
 `run_id`: a hash of the model versions and weights, the rules, the code
 version, the prices and every account's holdings. Changing any of them —
 one price by a cent, one account, the band — gives a different id. The
-hash cannot recreate the inputs, so `scripts/run_mass_demo.py` saves them
+hash cannot recreate the inputs, so `scripts/run_model_portfolio.py` saves them
 next to the results (`inputs.json`, `prices.json`, `holdings.json`);
 `--replay runs/<run_id>` recomputes the id from those files, reruns, and
 checks the orders match. Every run also proves it lost no account:
@@ -191,9 +216,9 @@ defaulting to `localhost` on each service's port above.
 ## Running the model portfolio lab
 
 ```bash
-python scripts/run_mass_demo.py --asof 2026-10-16             # new run → runs/<run_id>/
-python scripts/run_mass_demo.py --asof 2026-10-16 --band 0.03  # same accounts, another band
-python scripts/run_mass_demo.py --replay runs/<run_id>         # rerun from saved inputs
+python scripts/run_model_portfolio.py --asof 2026-10-16             # new run → runs/<run_id>/
+python scripts/run_model_portfolio.py --asof 2026-10-16 --band 0.03  # same accounts, another band
+python scripts/run_model_portfolio.py --replay runs/<run_id>         # rerun from saved inputs
 ```
 
 ## Local development
