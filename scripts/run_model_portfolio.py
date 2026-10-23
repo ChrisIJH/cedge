@@ -1,12 +1,12 @@
 """
-scripts/run_mass_demo.py
+scripts/run_model_portfolio.py
 
 Model portfolio lab: one rebalance run over synthetic accounts at real closes.
 Imperative shell — the only place that reads the DB and writes files.
 
-    python scripts/run_mass_demo.py --asof 2026-10-16
-    python scripts/run_mass_demo.py --asof 2026-10-16 --band 0.03
-    python scripts/run_mass_demo.py --replay runs/<run_id>
+    python scripts/run_model_portfolio.py --asof 2026-10-16
+    python scripts/run_model_portfolio.py --asof 2026-10-16 --band 0.03
+    python scripts/run_model_portfolio.py --replay runs/<run_id>
 
 runs/<run_id>/
     inputs.json      models, rules, as-of, code version, generator settings   } inputs: enough to
