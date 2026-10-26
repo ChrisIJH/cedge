@@ -3,6 +3,10 @@
 Model weights → whole-share orders across 1,010 synthetic accounts
 (1,000 seeded + 10 hand-made edge cases), valued at real closes.
 
+One level up, `model_change.py` works on the model itself: what a proposed
+model change does before it ships, and the closest variant of a model under a
+client's rules.
+
 ## Pipeline
 
 ```
@@ -24,6 +28,7 @@ then:  implementation effect (account vs model)  →  Brinson-Fachler attributio
 | `synthetic.py` | Seeded synthetic book: each account bought the model at a real close 1–12 months back |
 | `implementation.py` | Account vs model since the last rebalance: drift, cash, rounding (exact split) |
 | `attribution.py` | Account vs benchmark: allocation, selection, interaction (Brinson-Fachler) + cash, rounding |
+| `model_change.py` | Model level: a model change's turnover, flows and tracking error; the closest variant under exclusions and caps (minimum tracking error to the base), rounded to a 0.5% grid |
 
 ## Trade rules (`trades.py`)
 
@@ -33,6 +38,48 @@ then:  implementation effect (account vs model)  →  Brinson-Fachler attributio
 4. **Minimum ticket:** orders below `min_trade` dollars are dropped.
 5. **Cash:** sales fund purchases and the buffer is kept. If buys exceed what is available, they are scaled down pro rata and floored (`CASH_SHORT`), then leftover cash buys one share at a time of the most underweight holding, never above its unscaled order — so a rerun at the same prices trades nothing.
 6. **Checks:** no negative cash, no shorts, value conserved to the cent, integer shares. A violation becomes status `EXC_INVARIANT`, not an exception. Each account gets exactly one status — `TRADED`, `SKIPPED_IN_BAND`, `EXC_TOO_SMALL`, `EXC_INVARIANT` (plus `EXC_INPUT` from validation) — and any number of flags (`CASH_SHORT`, `STILL_OUT_OF_BAND`).
+
+## Model level (`model_change.py`)
+
+| Function | What it answers |
+|---|---|
+| `compare_models(old, new, cov, benchmark, aum)` | Before a model change ships: one-way turnover, flows by fund, change by sleeve, tracking error between versions and to the benchmark |
+| `make_variant(base, cov, exclude, universe, max_weight, max_sleeve, keep_sleeves)` | The variant closest to the base model in tracking-error terms under a client's rules; rules that can't all hold come back as status `infeasible` |
+| `round_to_grid(w, step)` | Weights on a 0.5% grid that still sum to exactly one (largest remainder) |
+| `Variant.to_model()` | The rounded variant as a `ModelPortfolio`, so the account engine above can trade it |
+
+Tracking error is √(dᵀ Σ d), with d = variant (or new model) − base, for any
+number of funds. Each variant also reports which rules were binding, any rule
+broken by rounding, and each fund's share of the tracking error.
+
+```bash
+python scripts/model_change_report.py --asof 2026-10-16                          # 2-pt IJR -> TIP change; IJR-free variants
+python scripts/model_change_report.py --asof 2026-10-16 --exclude IJR --max-weight 0.45
+```
+
+Results (five years of daily adjusted closes to 2026-10-16, 1,254 returns):
+
+Model change: MOD_6040, 2 points from IJR to TIP, $5bn following the model.
+
+| Turnover | Flows | TE new vs old | TE vs benchmark |
+|---|---|---|---|
+| 2% one-way | IJR −$100m, TIP +$100m | 0.42% | 1.08% → 0.91% |
+
+Variants without IJR:
+
+| Model | Rules | IVV / EFA / AGG / TIP | TE to base | Binding |
+|---|---|---|---|---|
+| MOD_6040 | exclude IJR | 48.5 / 12 / 30 / 9.5 | 0.94% (moving IJR into IVV: 0.96%) | — |
+| MOD_6040 | + keep sleeve totals | 50 / 10 / 31 / 9 | 0.96% | sleeve totals |
+| MOD_6040 | + max 45% per fund | 45 / 15 / 29.5 / 10.5 | 1.00% | IVV cap |
+| MOD_8020 | exclude IJR | 66 / 15 / 14.5 / 4.5 | 1.41% | — |
+| MOD_8020 | + max 45% per fund | 45 / 32.5 / 12 / 10.5 | 2.54% | IVV cap |
+
+Nothing in the universe behaves like small caps, so the optimizer barely beats
+moving IJR into IVV; the missing IJR carries about 104% of the 60/40 variant's
+tracking error. A 45% cap per fund turns the 80/20 variant into a different
+allocation: international equity goes from 12% to 32.5%. Plain rounding of the
+80/20 variant to 0.5% sums to 99.5%; largest remainder keeps it at 100%.
 
 ## Run it
 
@@ -76,12 +123,14 @@ Implementation effect (account vs model, since each account's last rebalance;
 - Orders are priced and assumed filled at the as-of close; a run is a one-day snapshot and does not carry holdings forward.
 - Attribution covers one holding period (buy-and-hold since the last rebalance), so no multi-period linking.
 - The band is in weight points, not tracking error.
+- Covariance is the sample covariance of five years of daily returns (21 numbers from 1,254 observations). The repo's factor model covers S&P 500 stocks with equity factors only — no ETF betas, no rates or credit factor — so it isn't used here; `compare_models` and `make_variant` take the covariance as an input, so a factor covariance plugs in unchanged.
+- Variants have no minimum position size (that needs a mixed-integer solve) and no tax awareness (turnover limits, tax lots).
 
 ## Tests
 
 ```bash
-pytest tests/cedge_core/model_portfolio tests/services/model_portfolio   # 57 tests, no database
-pytest -m "not db"                                                       # what CI runs: 297 of 312
+pytest tests/cedge_core/model_portfolio tests/services/model_portfolio   # 76 tests, no database
+pytest -m "not db"                                                       # what CI runs: 316 of 332
 ```
 Known-answer cases worked by hand (e.g. the Brinson split, the implementation
 split), loop vs vectorized agreement, rerun-is-a-no-op at four bands, and

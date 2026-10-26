@@ -76,7 +76,7 @@ reduced to loaders.
 | 2. Market view | What regime are we in? | `regime/` | In repo |
 | 3. Expected returns | What will outperform? | — | Not in this repo |
 | 4. Risk model | How do assets move together? | `optimization/covariance.py`, `marketdata/factor_risk.py` | Factor estimation not yet ported |
-| 5. Construction | What weights should the book hold? | `optimization/mean_variance.py`, `regime/policy.py` | `policy.py` not yet wired to the optimizer |
+| 5. Construction | What weights should the book hold? | `optimization/mean_variance.py`, `regime/policy.py`, `model_portfolio/model_change.py` | `policy.py` not yet wired to the optimizer; for model portfolios, model-change impact and the closest variant under client rules (minimum tracking error to the base model) |
 | 6. Implementation | Which orders put thousands of accounts on the model? | `model_portfolio/` | In repo, run on synthetic accounts at real closes |
 | 7. Risk monitoring | How much can we lose? | `risk/` | In repo |
 | 8. Performance & attribution | What did we earn, and why? | `portfolio/`, `model_portfolio/attribution.py` | L/S measurement; for model portfolios, account vs benchmark split into allocation / selection (Brinson-Fachler) and cash / rounding (implementation) against illustrative benchmarks |
