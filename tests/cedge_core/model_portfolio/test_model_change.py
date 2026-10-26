@@ -2,12 +2,17 @@
 import numpy as np
 import pandas as pd
 import pytest
+from cedge_core.model_portfolio.accounts import Account
 from cedge_core.model_portfolio.model_change import (
     annualized_covariance,
     compare_models,
+    make_variant,
+    round_to_grid,
     tracking_error,
 )
 from cedge_core.model_portfolio.models import ModelPortfolio
+from cedge_core.model_portfolio.run import RunInputs, run
+from cedge_core.model_portfolio.trades import Rules
 
 
 def cov_from(vols, corr):
@@ -103,3 +108,100 @@ def test_compare_models_names_a_ticker_with_no_sleeve():
 def test_no_change_is_all_zero():
     ch = compare_models(OLD, OLD, COV3, sleeve_of=SLEEVES)
     assert ch.turnover == 0.0 and ch.n_changed == 0 and ch.te_old_new == 0.0
+
+
+# --- round_to_grid ----------------------------------------------------------
+
+def test_round_to_grid_sums_to_exactly_one():
+    # plain rounding to 0.5% gives .655 + .15 + .145 + .045 = 0.995; the leftover
+    # step goes to the largest remainder (IVV, .6572 -> .66)
+    w = pd.Series({"IVV": 0.6572, "IJR": 0.0, "EFA": 0.15, "AGG": 0.1471, "TIP": 0.0457})
+    got = round_to_grid(w, 0.005)
+    assert got.to_dict() == pytest.approx({"AGG": 0.145, "EFA": 0.15, "IJR": 0.0, "IVV": 0.66, "TIP": 0.045},
+                                          abs=1e-12)
+    assert got.sum() == pytest.approx(1.0, abs=1e-12)
+
+
+def test_round_to_grid_breaks_ties_by_ticker():
+    got = round_to_grid(pd.Series({"B": 0.5025, "A": 0.4975}), 0.005)    # both remainders 0.5
+    assert got.to_dict() == pytest.approx({"A": 0.5, "B": 0.5}, abs=1e-12)
+
+
+def test_round_to_grid_rejects_a_step_that_does_not_divide_one():
+    with pytest.raises(ValueError, match="step"):
+        round_to_grid(pd.Series({"A": 1.0}), 0.003)
+
+
+# --- make_variant -----------------------------------------------------------
+
+def test_variant_with_one_fund_left_has_one_answer():
+    # universe {IVV, IJR}, base (.8, .2), IJR excluded: the only portfolio left is all IVV.
+    # sigma 16% / 20%, rho 0.9: TE = 0.2 * sqrt(0.0256 + 0.04 - 2 * 0.9 * 0.16 * 0.2) = 0.2 * sqrt(0.008)
+    cov = cov_from({"IVV": 0.16, "IJR": 0.20}, [[1, 0.9], [0.9, 1]])
+    v = make_variant(ModelPortfolio("M", "1.0", {"IVV": 0.8, "IJR": 0.2}), cov, exclude=["IJR"],
+                     sleeve_of={"IVV": "eq", "IJR": "eq"})
+    assert v.status == "optimal"
+    assert v.weights.to_dict() == pytest.approx({"IJR": 0.0, "IVV": 1.0}, abs=1e-6)
+    assert v.te == pytest.approx(0.2 * np.sqrt(0.008), abs=1e-6)
+    # shares d_i * (cov d)_i / TE^2, d = (IJR -0.2, IVV +0.2), cov(IVV, IJR) = 0.0288:
+    #   IJR: -0.2 * (0.2 * 0.0288 - 0.2 * 0.04) / 0.00032 = +1.4   IVV: -0.4  (they sum to 1;
+    #   the missing fund carries more than all of it, IVV takes some back)
+    assert v.te_share.to_dict() == pytest.approx({"IJR": 1.4, "IVV": -0.4}, abs=1e-6)
+
+
+def test_variant_moves_weight_to_the_correlated_fund():
+    # all vols 20%, rho(A, C) = 0.9, others 0; base (.5, .3, .2), C excluded, dC = -0.2,
+    # dB = 0.2 - dA:  TE^2 / 0.04 = dA^2 + (0.2 - dA)^2 + 0.04 - 0.36 dA,
+    # derivative 4 dA - 0.76 = 0 -> dA = 0.19 -> (0.69, 0.31, 0); TE^2 = 0.04 * 0.0078 = 0.000312
+    cov = cov_from({"A": 0.2, "B": 0.2, "C": 0.2}, [[1, 0, 0.9], [0, 1, 0], [0.9, 0, 1]])
+    v = make_variant(ModelPortfolio("M", "1.0", {"A": 0.5, "B": 0.3, "C": 0.2}), cov, exclude=["C"],
+                     sleeve_of={"A": "eq", "B": "eq", "C": "eq"})
+    assert v.weights.to_dict() == pytest.approx({"A": 0.69, "B": 0.31, "C": 0.0}, abs=1e-6)
+    assert v.te == pytest.approx(np.sqrt(0.000312), abs=1e-6)
+
+
+def test_variant_reports_the_binding_cap():
+    # uncorrelated, equal vols; base (.6, .2, .2), every fund capped at 45%: A gives up 0.15,
+    # split evenly -> (.45, .275, .275), TE = 0.2 * sqrt(0.15^2 + 2 * 0.075^2)
+    cov = cov_from({"A": 0.2, "B": 0.2, "C": 0.2}, np.eye(3))
+    v = make_variant(ModelPortfolio("M", "1.0", {"A": 0.6, "B": 0.2, "C": 0.2}), cov, max_weight=0.45,
+                     sleeve_of={"A": "eq", "B": "eq", "C": "eq"})
+    assert v.rounded.to_dict() == pytest.approx({"A": 0.45, "B": 0.275, "C": 0.275}, abs=1e-12)
+    assert v.binding == ("max_weight:A",)
+    assert v.te == pytest.approx(0.2 * np.sqrt(0.03375), abs=1e-6)
+    assert v.violations == ()
+
+
+def test_rules_that_cannot_hold_come_back_as_a_status():
+    # keep the bond sleeve at 40% while excluding every bond fund
+    sleeves = {"E": "equity", "B1": "bonds", "B2": "bonds"}
+    v = make_variant(ModelPortfolio("M", "1.0", {"E": 0.6, "B1": 0.2, "B2": 0.2}),
+                     cov_from({"E": 0.16, "B1": 0.05, "B2": 0.05}, np.eye(3)),
+                     exclude=["B1", "B2"], keep_sleeves=True, sleeve_of=sleeves)
+    assert v.status == "infeasible"
+    assert v.weights is None and v.rounded is None and v.binding == ()
+
+
+def test_variant_is_deterministic():
+    cov = cov_from({"A": 0.2, "B": 0.2, "C": 0.2}, [[1, 0, 0.9], [0, 1, 0], [0.9, 0, 1]])
+    base = ModelPortfolio("M", "1.0", {"A": 0.5, "B": 0.3, "C": 0.2})
+    one = make_variant(base, cov, exclude=["C"], sleeve_of={"A": "eq", "B": "eq", "C": "eq"})
+    two = make_variant(base, cov, exclude=["C"], sleeve_of={"A": "eq", "B": "eq", "C": "eq"})
+    pd.testing.assert_series_equal(one.rounded, two.rounded)
+    assert one.te_rounded == two.te_rounded
+
+
+def test_variant_feeds_the_account_engine():
+    # the rounded variant is a valid model: run() trades an account onto it and reconciles
+    sleeves = {t: "eq" for t in ("A", "B", "C")}
+    cov = cov_from({"A": 0.2, "B": 0.2, "C": 0.2}, [[1, 0, 0.9], [0, 1, 0], [0.9, 0, 1]])
+    v = make_variant(ModelPortfolio("M", "1.0", {"A": 0.5, "B": 0.3, "C": 0.2}), cov,
+                     exclude=["C"], sleeve_of=sleeves)
+    variant = v.to_model("M_NO_C", "1.0")
+    assert set(variant.weights) == {"A", "B"}
+    acct = Account("X", "M_NO_C", {"A": 50.0, "B": 30.0, "C": 20.0}, 0.0)
+    res = run(RunInputs({"M_NO_C": variant}, "2026-10-16", Rules(), "test"), [acct],
+              {"A": 100.0, "B": 100.0, "C": 100.0})
+    c = res.counts
+    assert c["n_target"] == c["n_processed"] + c["n_exception"] + c["n_skipped"] == 1
+    assert res.post_accounts[0].shares.get("C", 0.0) == 0.0          # the excluded fund is sold
