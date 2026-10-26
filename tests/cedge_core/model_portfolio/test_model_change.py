@@ -2,6 +2,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+from cedge_core.marketdata.prices import load_prices_adjclose
 from cedge_core.model_portfolio.accounts import Account
 from cedge_core.model_portfolio.model_change import (
     annualized_covariance,
@@ -10,7 +11,7 @@ from cedge_core.model_portfolio.model_change import (
     round_to_grid,
     tracking_error,
 )
-from cedge_core.model_portfolio.models import ModelPortfolio
+from cedge_core.model_portfolio.models import MODELS, ModelPortfolio
 from cedge_core.model_portfolio.run import RunInputs, run
 from cedge_core.model_portfolio.trades import Rules
 
@@ -205,3 +206,29 @@ def test_variant_feeds_the_account_engine():
     c = res.counts
     assert c["n_target"] == c["n_processed"] + c["n_exception"] + c["n_skipped"] == 1
     assert res.post_accounts[0].shares.get("C", 0.0) == 0.0          # the excluded fund is sold
+
+
+
+# --- real data ---------------------------------------------------------------
+
+@pytest.mark.db
+def test_real_data_ijr_exclusion():
+    # five years of daily adjusted closes to 2026-10-16 (1,254 returns). Moving MOD_6040's 8% IJR
+    # into IVV costs 0.96% tracking error; the optimizer only gets it to 0.94%, because nothing
+    # in the universe behaves like small caps. Almost all of it comes from the missing IJR.
+    adj = load_prices_adjclose(None, ["AGG", "EFA", "IJR", "IVV", "TIP"], "2021-10-16", "2026-10-16")
+    cov = annualized_covariance(adj)
+    base = MODELS["MOD_6040"]
+    moved = dict(base.weights)
+    moved["IVV"] += moved.pop("IJR")
+    assert tracking_error(moved, base.weights, cov) == pytest.approx(0.0096, abs=0.0001)
+
+    v = make_variant(base, cov, exclude=["IJR"])
+    assert v.rounded.to_dict() == pytest.approx(
+        {"AGG": 0.30, "EFA": 0.12, "IJR": 0.0, "IVV": 0.485, "TIP": 0.095}, abs=1e-12)
+    assert v.te_rounded == pytest.approx(0.0094, abs=0.0001)
+    assert v.te_share["IJR"] == pytest.approx(1.04, abs=0.01)
+
+
+
+    
