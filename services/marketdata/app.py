@@ -13,12 +13,14 @@ import os
 from typing import Optional
 
 import numpy as np
+import pandas as pd
 from cedge_core.db import ch_engine
 from cedge_core.estimators import realized_beta
 from cedge_core.marketdata.portfolios import SqlPortfolioRepository
 from cedge_core.marketdata.prices import load_prices_adjclose
 from cedge_core.marketdata.returns import to_returns
 from cedge_core.marketdata.weights import portfolio_returns
+from cedge_core.portfolio.stats import drawdown_series
 from flask import Flask, jsonify, request
 
 from services.common import (
@@ -134,6 +136,7 @@ def returns():
     return jsonify({
         "dates": [str(d) for d in dates],
         "returns": json_safe(series),
+        "drawdown": json_safe(drawdown_series(pd.Series(series, index=dates)).to_numpy()),
         "n_observations": len(series),
         "gross": exposure["gross"],
         "net": exposure["net"],

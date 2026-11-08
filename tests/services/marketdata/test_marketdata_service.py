@@ -114,3 +114,37 @@ def test_portfolios_listing_has_the_four_key_columns(client):
     assert body["portfolios"]
     for key in ("pf_name", "experiment_id", "branch", "source"):
         assert key in body["portfolios"][0]
+
+def test_drawdown_is_returned_alongside_returns(client, monkeypatch):
+    import pandas as pd
+
+    dates = pd.date_range("2026-11-02", periods=4, freq="B")
+    panel = pd.DataFrame({"AAA": [100.0, 90.0, 99.0, 108.0],
+                          "SPY": [100.0, 101.0, 102.0, 103.0]}, index=dates)
+    monkeypatch.setattr(_module, "ch_engine", lambda: None)
+    monkeypatch.setattr(_module, "load_prices_adjclose", lambda *a, **k: panel)
+
+    response = client.post("/api/portfolio_returns", json={
+        "weights": {"AAA": 1.0}, "start_date": "2026-11-02", "end_date": "2026-11-05"})
+    assert response.status_code == 200
+    body = response.get_json()
+
+    # returns -10%, +10%, +9.09%: wealth 0.90, 0.99, 1.08 -> peak 1.0, 1.0, 1.08
+    assert body["returns"] == pytest.approx([-0.10, 0.10, 108 / 99 - 1])
+    assert body["drawdown"] == pytest.approx([-0.10, -0.01, 0.0])
+    assert len(body["drawdown"]) == len(body["dates"])
+
+
+@pytest.mark.db
+def test_model_6040_deepest_drawdown_is_march_2020(client):
+    import pandas as pd
+
+    response = client.post("/api/portfolio_returns", json={
+        "weights": {"IVV": 0.42, "IJR": 0.08, "EFA": 0.10, "AGG": 0.30, "TIP": 0.10},
+        "start_date": "2016-01-01", "end_date": "2026-11-06"})
+    assert response.status_code == 200
+    body = response.get_json()
+
+    dd = pd.Series(body["drawdown"], index=pd.to_datetime(body["dates"]))
+    assert dd.min() == pytest.approx(-0.223, abs=0.001)
+    assert dd.idxmin() == pd.Timestamp("2020-03-23")
