@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from cedge_core.risk import var_es_model
+from cedge_core.risk.fhs_var import rolling_fhs_es, rolling_fhs_var
 from cedge_core.risk.var_es_model import (
     _cell_summary,
     backtest_one,
@@ -304,3 +305,23 @@ class TestMultiBacktest:
         assert np.isnan(row["r2"])
         assert np.isnan(row["alpha"])
         assert row["beta_n"] == 0
+
+class TestRollingVarEsFhs:
+    def test_matches_core_fhs_functions(self):
+        r = np.random.default_rng(7).standard_t(4, 400) * 0.01
+        idx, var, es = rolling_var_es(r, 100, 0.01, "fhs")
+
+        assert list(idx) == list(range(100, 400))
+        np.testing.assert_array_equal(var, rolling_fhs_var(r, 100, 0.01)[100:])
+        np.testing.assert_array_equal(es, rolling_fhs_es(r, 100, 0.01)[100:])
+
+
+    def test_full_backtest_default_methods_are_unchanged(self):
+        r = np.random.default_rng(9).normal(0, 0.01, 300)
+        assert set(full_backtest(r, window=100, n_boot=200)) == {
+            ("parametric", 0.05), ("historic", 0.05), ("parametric", 0.01), ("historic", 0.01)}
+
+    def test_full_backtest_accepts_fhs(self):
+        r = np.random.default_rng(10).standard_t(4, 400) * 0.01
+        cell = full_backtest(r, window=100, levels=(0.01,), methods=("fhs",), n_boot=200)[("fhs", 0.01)]
+        assert np.array_equal(cell["breaches"], (cell["r_eval"] < -cell["var"]).astype(int))

@@ -14,6 +14,7 @@ from cedge_core.estimators import realized_beta
 from cedge_core.marketdata.prices import load_prices_adjclose
 from cedge_core.marketdata.returns import to_returns
 from cedge_core.marketdata.weights import portfolio_returns
+from cedge_core.risk.fhs_var import rolling_fhs_es, rolling_fhs_var
 from cedge_core.risk.var_backtest_model import (
     acerbi_szekely_z2,
     christoffersen_cc,
@@ -51,6 +52,11 @@ def rolling_var_es(returns, window, alpha, method):
     r = np.asarray(returns, float)
     n = len(r)
     idx = np.arange(window, n)
+
+    if method == 'fhs':
+        # FHS filters volatility over the whole series (EWMA), so it is not a
+        # function of one window; its value at i still uses only returns before i.
+        return idx, rolling_fhs_var(r, window, alpha)[idx], rolling_fhs_es(r, window, alpha)[idx]
     vf, ef = _VAR[method], _ES[method]
     var = np.array([vf(r[i-window:i], alpha) for i in idx])   # r[i-W:i] = 과거, i 제외
     es  = np.array([ef(r[i-window:i], alpha) for i in idx])
