@@ -148,3 +148,27 @@ def test_model_6040_deepest_drawdown_is_march_2020(client):
     dd = pd.Series(body["drawdown"], index=pd.to_datetime(body["dates"]))
     assert dd.min() == pytest.approx(-0.223, abs=0.001)
     assert dd.idxmin() == pd.Timestamp("2020-03-23")
+
+
+def test_data_warnings_flag_an_unadjusted_split(client, monkeypatch):
+    import pandas as pd
+
+    dates = pd.date_range("2026-11-02", periods=3, freq="B")
+    panel = pd.DataFrame({"MTUM": [270.0, 272.86, 62.60],
+                          "IVV": [600.0, 606.0, 594.0],
+                          "SPY": [600.0, 606.0, 594.0]}, index=dates)
+    monkeypatch.setattr(_module, "ch_engine", lambda: None)
+    monkeypatch.setattr(_module, "load_prices_adjclose", lambda *a, **k: panel)
+
+    response = client.post("/api/portfolio_returns", json={
+        "weights": {"MTUM": 0.5, "IVV": 0.5}, "start_date": "2026-11-02", "end_date": "2026-11-04"})
+    warnings = response.get_json()["data_warnings"]
+    assert [(w["ticker"], w["date"]) for w in warnings] == [("MTUM", "2026-11-04")]
+
+
+@pytest.mark.db
+def test_model_6040_has_no_data_warnings(client):
+    response = client.post("/api/portfolio_returns", json={
+        "weights": {"IVV": 0.42, "IJR": 0.08, "EFA": 0.10, "AGG": 0.30, "TIP": 0.10},
+        "start_date": "2016-01-01", "end_date": "2026-11-06"})
+    assert response.get_json()["data_warnings"] == []
