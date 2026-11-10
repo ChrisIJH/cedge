@@ -60,7 +60,7 @@ def compute_performance_stats(ret_series: pd.Series,
     sharpe = annual_return / annual_vol if annual_vol > 0 else np.nan
     cum = (1 + ret_series).cumprod()
     total_return = cum.iloc[-1] - 1
-    max_dd = (cum / cum.cummax() - 1).min()
+    max_dd = drawdown_series(ret_series).min()
     return PerformanceStats(total_return, annual_return, 
                             annual_vol, sharpe, max_dd, name)
 
@@ -98,3 +98,13 @@ def build_cumulative(policy_rets: dict[str, pd.Series], dates: pd.Series) -> pd.
     for name, series in policy_rets.items():
         result[name] = (1 + series.values).cumprod() - 1
     return result
+
+
+def drawdown_series(ret_series: pd.Series) -> pd.Series:
+    """Daily decline from the running peak; the peak starts at 1.0 before the first return"""
+    if len(ret_series) == 0:
+        raise ValueError("empty return series")
+
+    wealth = (1 + ret_series).cumprod()
+    peak= wealth.cummax().clip(lower=1.0)
+    return wealth / peak - 1 

@@ -32,6 +32,8 @@ register_error_handlers(app)
 
 VAR_CONVENTION = "VaR/ES are positive loss numbers; larger = riskier"
 
+_FULL_BACKTEST_METHODS = ['parametric', 'historic', 'fhs']
+_DEFAULT_FULL_BACKTEST_METHODS = ['parametric', 'historic']
 
 def _require_returns(payload):
     returns = payload.get("returns")
@@ -153,7 +155,6 @@ def var_backtest():
     result["n_observations"] = int(valid.sum())
     return jsonify(result)
 
-_FULL_BACKTEST_METHODS = ['parametric', 'historic']
 
 def _cell_to_json(cell):
     """One full_backtest() cell -> JSON-safe dict.
@@ -198,7 +199,7 @@ def full_backtest_route():
         if not isinstance(level, (int, float)) or not 0 < level < 1:
             raise BadRequest(f"each 'levels' entry must be in (0, 1), got {level!r}")
 
-    methods = payload.get("methods", list(_FULL_BACKTEST_METHODS))
+    methods = payload.get("methods", list(_DEFAULT_FULL_BACKTEST_METHODS))
     if not isinstance(methods, list) or not methods:
         raise BadRequest("'methods' must be a non-empty array")
     unknown = set(methods) - set(_FULL_BACKTEST_METHODS)

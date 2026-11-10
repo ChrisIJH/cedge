@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-from cedge_core.marketdata.returns import to_returns
+from cedge_core.marketdata.returns import flag_suspect_moves, to_returns
 
 
 def _prices_frame() -> pd.DataFrame:
@@ -108,3 +108,35 @@ class TestToReturnsDropna:
     def test_unknown_dropna_raises(self):
         with pytest.raises(ValueError, match="Unknown dropna"):
             to_returns(self._ragged(), dropna="never")
+
+class TestFlagSuspectMoves:
+    def _returns(self, **cols):
+        idx = pd.date_range("2026-11-02", periods=3, freq="B")
+        return pd.DataFrame(cols, index=idx)
+
+    def test_unadjusted_four_for_one_split_is_flagged(self):
+        # MTUM on 2026-11-05: 272.86 -> 62.60
+        r = self._returns(MTUM=[0.01, 62.60 / 272.86 - 1, 0.02])
+        (warning,) = flag_suspect_moves(r)
+        assert warning["ticker"] == "MTUM"
+        assert warning["date"] == "2026-11-03"
+        assert warning["reason"] == "price ratio close to a split factor"
+
+    def test_unadjusted_reverse_split_is_flagged(self):
+        r = self._returns(UVXY=[0.0, 3.86, 0.0])
+        assert [w["date"] for w in flag_suspect_moves(r)] == ["2026-11-03"]
+
+    def test_large_genuine_moves_are_not_flagged(self):
+        # volatility ETFs: +45% and +66% days, a -33% day
+        r = self._returns(UVXY=[0.45, 0.66, -0.33])
+        assert flag_suspect_moves(r) == []
+
+    def test_extreme_move_not_near_a_split_factor_is_flagged(self):
+        # ratio 0.14 is more than 10% away from 1/6 and 1/8
+        r = self._returns(PARA=[0.0, -0.86, 0.0])
+        (warning,) = flag_suspect_moves(r)
+        assert warning["reason"] == "move of 75% or more"
+
+    def test_nan_days_are_skipped(self):
+        r = self._returns(AAA=[np.nan, 0.01, -0.02])
+        assert flag_suspect_moves(r) == []

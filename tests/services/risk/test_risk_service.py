@@ -12,6 +12,7 @@ fails.
 import numpy as np
 import pandas as pd
 import pytest
+from cedge_core.risk.fhs_var import rolling_fhs_var
 from cedge_core.risk.param_var import rolling_parametric_var_confidence
 
 from services.risk import app as _module
@@ -168,3 +169,14 @@ def test_full_backtest_invalid_input_returns_400(client, payload, fragment):
     response = client.post("/api/full_backtest", json=payload)
     assert response.status_code == 400
     assert fragment in response.get_json()["error"]
+
+
+def test_full_backtest_fhs_matches_core(client, fat_tail_returns):
+    response = client.post("/api/full_backtest", json={
+        "returns": fat_tail_returns, "window": 100, "levels": [0.01], "methods": ["fhs"],
+    })
+    assert response.status_code == 200
+    (cell,) = response.get_json()["cells"]
+    assert cell["method"] == "fhs"
+    expected = rolling_fhs_var(np.asarray(fat_tail_returns), 100, 0.01)[100:]
+    assert cell["var"] == pytest.approx(expected.tolist())

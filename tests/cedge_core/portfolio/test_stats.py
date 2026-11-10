@@ -9,6 +9,7 @@ from cedge_core.portfolio.stats import (
     calc_return_stats,
     calc_stats,
     compute_performance_stats,
+    drawdown_series,
 )
 
 
@@ -110,3 +111,30 @@ class TestBuildCumulative:
 
         assert result['Policy A'].iloc[-1] == pytest.approx((1.01 ** 3) - 1, abs=1e-9)
         assert result['Policy B'].iloc[-1] == pytest.approx((1.02 * 0.99 * 1.0) - 1, abs=1e-9)
+
+
+class TestDrawdownSeries:
+    def test_known_answer(self):
+        # wealth 1.10, 0.88, 0.924 -> peak stays 1.10
+        ret = pd.Series([0.10, -0.20, 0.05])
+        dd = drawdown_series(ret)
+        assert dd.tolist() == pytest.approx([0.0, -0.20, 0.924 / 1.10 - 1])
+
+    def test_first_day_loss_counts_from_starting_value(self):
+        # the peak before the first return is the starting value 1.0
+        ret = pd.Series([-0.10, 0.05])
+        dd = drawdown_series(ret)
+        assert dd.tolist() == pytest.approx([-0.10, 0.945 - 1])
+
+    def test_max_drawdown_uses_drawdown_series(self):
+        ret = pd.Series([-0.10, -0.05, 0.20])
+        assert compute_performance_stats(ret).max_drawdown == pytest.approx(0.9 * 0.95 - 1)
+
+    def test_index_is_preserved(self):
+        idx = pd.date_range("2026-11-02", periods=3, freq="B")
+        ret = pd.Series([0.01, -0.02, 0.01], index=idx)
+        assert drawdown_series(ret).index.equals(idx)
+
+    def test_empty_raises(self):
+        with pytest.raises(ValueError):
+            drawdown_series(pd.Series([], dtype=float))
