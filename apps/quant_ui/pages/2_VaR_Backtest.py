@@ -188,6 +188,16 @@ col3.metric("Gross / Net", f"{returns_body['gross']:.1f} / {returns_body['net']:
 col4.metric(f"Beta vs {beta['market']}" if beta else "Beta", f"{beta['beta']:.2f}" if beta else "n/a")
 st.caption(returns_body["weighting"])
 
+# price-data warnings (older marketdata services do not return them)
+data_warnings = returns_body.get("data_warnings") or []
+if data_warnings:
+    shown = data_warnings[:10]
+    lines = "\n".join(f"- {w['ticker']} on {w['date']}: {w['return']:+.1%} ({w['reason']})" for w in shown)
+    more = f"\n- … and {len(data_warnings) - len(shown)} more" if len(data_warnings) > len(shown) else ""
+    st.warning("**Possible price-data errors in this book.** Days like these are usually an "
+               "unadjusted split, not a market move; results that include them can be wrong.\n"
+               + lines + more)
+
 # Charts open on the last 12 months; every number above and below uses the whole sample.
 view_end = dates[-1]
 view_start = view_end - pd.DateOffset(months=12)
