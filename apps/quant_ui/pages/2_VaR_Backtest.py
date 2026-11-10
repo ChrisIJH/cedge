@@ -35,12 +35,19 @@ PRESETS = {
 ### sidebar
 
 st.sidebar.header("Book")
-source = st.sidebar.radio("Source", ["Preset", "From database"])
+source = st.sidebar.radio("Source", ["Preset", "Model portfolio", "From database"])
 
 if source=='Preset':
     preset_name = st.sidebar.selectbox("Preset", list(PRESETS))
     weights = PRESETS[preset_name]
     book_label = preset_name
+elif source == "Model portfolio":
+    models = api.get("model_portfolio", "/api/model_portfolio/models")["models"]
+    # st.write(models)
+    model_id = st.sidebar.selectbox("Model", sorted(models))
+    weights = models[model_id]['weights']
+    book_label = f"{model_id} v{models[model_id]['version']}"
+    st.sidebar.caption(f"Weights from the model protfolio service ({len(weights)} ETFs)")
 else:
     books = api.get("marketdata", "/api/portfolios")["portfolios"]
     if not books:
