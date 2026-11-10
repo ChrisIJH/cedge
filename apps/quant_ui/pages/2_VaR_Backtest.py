@@ -32,19 +32,65 @@ PRESETS = {
     "Size L/S":         {"IWM": 1.0, "SPY": -1.0},
 }
 
+### URL parameters -> starting values of the sidebar widgets
+# e.g. ?source=model&book=MOD_6040&start=2016-01-01&end=2026-11-06&level=0.99&method=historic&run=1
+
+
+SOURCES = {"preset": "Preset", "model": "Model portfolio", "database": "From database"}
+
+
+def url_choice(name, options, default):
+    value = st.query_params.get(name)
+    if value is None:
+        return default
+    if value not in options:
+        st.sidebar.warning(f"Ignored URL parameter {name}={value!r}")
+        return default
+    return value
+
+
+def url_choices(name, options, default, cast=str):
+    value = st.query_params.get(name)
+    if value is None:
+        return default
+    try:
+        chosen = [cast(v) for v in value.split(",")]
+    except ValueError:
+        chosen = []
+    if not chosen or any(c not in options for c in chosen):
+        st.sidebar.warning(f"Ignored URL parameter {name}={value!r}")
+        return default
+    return chosen
+
+
+def url_date(name, default):
+    value = st.query_params.get(name)
+    if value is None:
+        return default
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        st.sidebar.warning(f"Ignored URL parameter {name}={value!r}")
+        return default
+
+
 ### sidebar
 
 st.sidebar.header("Book")
-source = st.sidebar.radio("Source", ["Preset", "Model portfolio", "From database"])
+source_key = url_choice("source", list(SOURCES), "preset")
+source = st.sidebar.radio("Source", list(SOURCES.values()), index=list(SOURCES).index(source_key))
 
 if source=='Preset':
-    preset_name = st.sidebar.selectbox("Preset", list(PRESETS))
+    preset_names = list(PRESETS)
+    preset_name = st.sidebar.selectbox(
+        "Preset", preset_names, index=preset_names.index(url_choice("book", preset_names, preset_names[0])))
     weights = PRESETS[preset_name]
     book_label = preset_name
 elif source == "Model portfolio":
     models = api.get("model_portfolio", "/api/model_portfolio/models")["models"]
-    # st.write(models)
-    model_id = st.sidebar.selectbox("Model", sorted(models))
+    model_ids = sorted(models)
+    model_id = st.sidebar.selectbox(
+        "Model", model_ids, index=model_ids.index(url_choice("book", model_ids, model_ids[0])))
     weights = models[model_id]['weights']
     book_label = f"{model_id} v{models[model_id]['version']}"
     st.sidebar.caption(f"Weights from the model protfolio service ({len(weights)} ETFs)")
@@ -73,15 +119,18 @@ else:
 
 
 st.sidebar.header("Period")
-start_date = st.sidebar.date_input("Start", value=date(2015, 1, 1))
-end_date = st.sidebar.date_input("End", value=date(2024, 12, 31))
+
+start_date = st.sidebar.date_input("Start", value=url_date("start", date(2015, 1, 1)))
+end_date = st.sidebar.date_input("End", value=url_date("end", date(2024, 12, 31)))
 
 st.sidebar.header("Backtest settings")
 window = st.sidebar.slider("Rolling window", 60, 500, 252, step=10)
-levels = st.sidebar.multiselect("Confidence levels", [0.95, 0.99], default=[0.95, 0.99],
+levels = st.sidebar.multiselect("Confidence levels", [0.95, 0.99],
+                                default=url_choices("level", [0.95, 0.99], [0.95, 0.99], float),
                                 format_func=lambda x: f"{x:.0%}")
 methods = st.sidebar.multiselect("Methods", ["parametric", "historic"],
-                                 default=["parametric", "historic"])
+                                 default=url_choices("method", ["parametric", "historic"],
+                                                     ["parametric", "historic"]))
 n_boot = st.sidebar.select_slider("Bootstrap draws (Acerbi-Székely)",
                                   [1000, 2000, 3000, 5000], value=3000)
 
@@ -93,7 +142,9 @@ alpha_levels = sorted({round(1.0 - c, 4) for c in levels}, reverse=True)
 
 st.sidebar.divider()
 run = st.sidebar.button("Run Backtest", type="primary", use_container_width=True)
-
+if st.query_params.get("run") == "1" and "var_backtest_body" not in st.session_state:
+    run = True
+    
 if run:
     returns_body = api.post("marketdata", "/api/portfolio_returns", {
         "weights": weights, "start_date": str(start_date), "end_date": str(end_date),
