@@ -187,6 +187,23 @@ col3.metric("Gross / Net", f"{returns_body['gross']:.1f} / {returns_body['net']:
 col4.metric(f"Beta vs {beta['market']}" if beta else "Beta", f"{beta['beta']:.2f}" if beta else "n/a")
 st.caption(returns_body["weighting"])
 
+# Charts open on the last 12 months; every number above and below uses the whole sample.
+view_end = dates[-1]
+view_start = view_end - pd.DateOffset(months=12)
+
+# drawdown (older marketdata services do not return it)
+drawdown = returns_body.get("drawdown")
+if drawdown is not None:
+    dd = pd.Series(drawdown, index=dates)
+    fig_dd = go.Figure(go.Scatter(x=dates, y=dd, mode="lines", fill="tozeroy", name="Drawdown",
+                                  line=dict(width=1.0, color="#d1435b")))
+    fig_dd.update_layout(height=220, margin=dict(t=30, b=0, l=0, r=0),
+                         title=dict(text="Drawdown — decline from the running peak", font=dict(size=14)))
+    fig_dd.update_xaxes(range=[view_start, view_end])
+    fig_dd.update_yaxes(tickformat=".0%")
+    st.plotly_chart(fig_dd, use_container_width=True)
+    st.caption(f"Deepest: {dd.min():.1%} on {dd.idxmin():%Y-%m-%d} · latest: {dd.iloc[-1]:.1%}")
+
 # tabs
 METHOD_IN_WORDS = {
     "parametric": "normal-distribution estimate",
@@ -219,7 +236,7 @@ for tab, cell in zip(tabs, cells):
             f"**{var.iloc[-1]:.2%}** loss. Over {k['T']:,} days, losses went beyond the line on "
             f"**{k['N']}** days, where about **{expected_n:.0f}** were expected."
         )
-        
+
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Breaches", f"{k['N']} / {k['T']}")
         m2.metric("Breach rate", f"{k['breach_rate']:.2%}",
@@ -256,6 +273,21 @@ for tab, cell in zip(tabs, cells):
         fig.update_layout(height=560, margin=dict(t=40, b=0, l=0, r=0), hovermode="x unified",
                          legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0))
         fig.update_yaxes(tickformat=".1%", row=1, col=1)
+
+        hits = eval_dates[breach.to_numpy()]
+        if len(hits):
+            last_hit = hits[-1]
+            fig.add_annotation(x=last_hit, y=r_eval[last_hit], ax=-70, ay=30, row=1, col=1,
+                               arrowcolor="#d1435b", font=dict(color="#d1435b"),
+                               text=f"{last_hit:%b %d, %Y}: {r_eval[last_hit]:.2%}"
+                                    f"<br>loss line {var[last_hit]:.2%}")
+
+        recent = eval_dates >= view_start
+        if recent.any():
+            low = min(r_eval[recent].min(), -es[recent].max())
+            fig.update_xaxes(range=[view_start, view_end])
+            fig.update_yaxes(range=[low * 1.15, r_eval[recent].max() * 1.15], row=1, col=1)
+
         st.plotly_chart(fig, use_container_width=True, key=f"chart_{cell_label(cell)}")
 
         # ---- clustering table
