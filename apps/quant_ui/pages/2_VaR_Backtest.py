@@ -260,11 +260,12 @@ for tab, cell in zip(tabs, cells):
             vertical_spacing=0.06,
             subplot_titles=["", "Breaches per rolling quarter — clustering"],
         )
+        conf = f"{1 - cell['alpha']:.0%}"
         fig.add_trace(go.Scatter(x=eval_dates, y=r_eval, mode="lines", name="Return",
                                  line=dict(width=0.6, color="#8a8f98")), row=1, col=1)
-        fig.add_trace(go.Scatter(x=eval_dates, y=-var, mode="lines", name="VaR",
+        fig.add_trace(go.Scatter(x=eval_dates, y=-var, mode="lines", name=f"VaR {conf}",
                                  line=dict(width=1.4, color="#2f6fd0")), row=1, col=1)
-        fig.add_trace(go.Scatter(x=eval_dates, y=-es, mode="lines", name="ES",
+        fig.add_trace(go.Scatter(x=eval_dates, y=-es, mode="lines", name=f"ES {conf}",
                                  line=dict(width=1.0, color="#2f6fd0", dash="dot")), row=1, col=1)
         fig.add_trace(go.Scatter(
             x=eval_dates[breach], y=r_eval[breach], mode="markers",
