@@ -144,7 +144,7 @@ st.sidebar.divider()
 run = st.sidebar.button("Run Backtest", type="primary", use_container_width=True)
 if st.query_params.get("run") == "1" and "var_backtest_body" not in st.session_state:
     run = True
-    
+
 if run:
     returns_body = api.post("marketdata", "/api/portfolio_returns", {
         "weights": weights, "start_date": str(start_date), "end_date": str(end_date),
@@ -188,6 +188,10 @@ col4.metric(f"Beta vs {beta['market']}" if beta else "Beta", f"{beta['beta']:.2f
 st.caption(returns_body["weighting"])
 
 # tabs
+METHOD_IN_WORDS = {
+    "parametric": "normal-distribution estimate",
+    "historic": f"history of the previous {window} days",
+}
 
 def cell_label(cell):
     return f"{cell['method']} {1 - cell['alpha']:.0%}"
@@ -207,6 +211,15 @@ for tab, cell in zip(tabs, cells):
         c = cell["christoffersen"]
         a = cell["acerbi"]
 
+        days = round(1 / cell["alpha"])
+        expected_n = k["expected_rate"] * k["T"]
+        st.markdown(
+            f"**1-in-{days}-day loss line** ({1 - cell['alpha']:.0%} VaR, "
+            f"{METHOD_IN_WORDS[cell['method']]}): for {eval_dates[-1]:%Y-%m-%d} the line was a "
+            f"**{var.iloc[-1]:.2%}** loss. Over {k['T']:,} days, losses went beyond the line on "
+            f"**{k['N']}** days, where about **{expected_n:.0f}** were expected."
+        )
+        
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Breaches", f"{k['N']} / {k['T']}")
         m2.metric("Breach rate", f"{k['breach_rate']:.2%}",
