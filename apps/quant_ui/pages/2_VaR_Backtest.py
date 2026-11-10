@@ -128,9 +128,10 @@ window = st.sidebar.slider("Rolling window", 60, 500, 252, step=10)
 levels = st.sidebar.multiselect("Confidence levels", [0.95, 0.99],
                                 default=url_choices("level", [0.95, 0.99], [0.95, 0.99], float),
                                 format_func=lambda x: f"{x:.0%}")
-methods = st.sidebar.multiselect("Methods", ["parametric", "historic"],
-                                 default=url_choices("method", ["parametric", "historic"],
-                                                     ["parametric", "historic"]))
+METHODS = ["parametric", "historic", "fhs"]
+methods = st.sidebar.multiselect("Methods", METHODS,
+                                 default=url_choices("method", METHODS, ["parametric", "historic"]),
+                                 help="fhs = filtered historical simulation (volatility-adjusted history)")
 n_boot = st.sidebar.select_slider("Bootstrap draws (Acerbi-Székely)",
                                   [1000, 2000, 3000, 5000], value=3000)
 
@@ -208,6 +209,7 @@ if drawdown is not None:
 METHOD_IN_WORDS = {
     "parametric": "normal-distribution estimate",
     "historic": f"history of the previous {window} days",
+    "fhs": f"volatility-adjusted history of the previous {window} days (FHS)",
 }
 
 def cell_label(cell):
@@ -237,12 +239,10 @@ for tab, cell in zip(tabs, cells):
             f"**{k['N']}** days, where about **{expected_n:.0f}** were expected."
         )
 
-        m1, m2, m3, m4 = st.columns(4)
+        m1, m2 = st.columns(2)
         m1.metric("Breaches", f"{k['N']} / {k['T']}")
         m2.metric("Breach rate", f"{k['breach_rate']:.2%}",
                   delta=f"{k['breach_rate'] - k['expected_rate']:+.2%} vs expected")
-        m3.metric("Kupiec", "Reject H\u2080 (Fail)" if k["reject"] else "Fail to reject H\u2080 (Pass)")
-        m4.metric("Christoffersen", "Reject H\u2080 (Fail)" if c["reject"] else "Fail to reject H\u2080 (Pass)")
 
         # ---- 2-panel chart: returns/VaR/breach (top), rolling breach count (bottom)
         fig = make_subplots(
@@ -290,24 +290,29 @@ for tab, cell in zip(tabs, cells):
 
         st.plotly_chart(fig, use_container_width=True, key=f"chart_{cell_label(cell)}")
 
+        diagnostics = st.expander("Model diagnostics — statistical tests")
+        m3, m4 = diagnostics.columns(2)
+        m3.metric("Kupiec", "Reject H\u2080 (Fail)" if k["reject"] else "Fail to reject H\u2080 (Pass)")
+        m4.metric("Christoffersen", "Reject H\u2080 (Fail)" if c["reject"] else "Fail to reject H\u2080 (Pass)")
+        
         # ---- clustering table
-        st.subheader("Clustering — \u03c001 vs \u03c011")
-        st.caption(
+        diagnostics.subheader("Clustering — \u03c001 vs \u03c011")
+        diagnostics.caption(
             "\u03c001 = P(breach | calm yesterday), \u03c011 = P(breach | breach yesterday). "
             "If breaches were independent these would be equal; a large multiple means "
             "breaches cluster — the model adapts too slowly to a shift in volatility."
         )
         pi01, pi11 = c["pi_01"], c["pi_11"]
-        st.dataframe(pd.DataFrame([{
+        diagnostics.dataframe(pd.DataFrame([{
             "\u03c001": f"{pi01:.1%}", "\u03c011": f"{pi11:.1%}",
             "multiple (\u03c011/\u03c001)": f"{pi11 / pi01:.1f}\u00d7" if pi01 > 0 else "\u2014",
             "Christoffersen": "Reject H\u2080 (Fail)" if c["reject"] else "Fail to reject H\u2080 (Pass)",
         }]), use_container_width=True, hide_index=True)
 
         # ---- ES depth
-        st.subheader("ES depth \u2014 predicted vs realized")
+        diagnostics.subheader("ES depth \u2014 predicted vs realized")
         ratio = cell["avg_real_loss"] / cell["avg_pred_es"] if cell["avg_pred_es"] else float("nan")
-        st.dataframe(pd.DataFrame([{
+        diagnostics.dataframe(pd.DataFrame([{
             "predicted ES": f"{cell['avg_pred_es']:.2%}",
             "realized loss (avg breach)": f"{cell['avg_real_loss']:.2%}",
             "real / pred": f"{ratio:.2f}",
@@ -315,8 +320,8 @@ for tab, cell in zip(tabs, cells):
             "Acerbi\u2013Sz\u00e9kely": "Reject H\u2080 (Fail)" if a["reject"] else "Fail to reject H\u2080 (Pass)",
         }]), use_container_width=True, hide_index=True)
 
-        with st.expander("Reading these results"):
-            st.markdown(f"""
+        diagnostics.subheader("Reading these results")
+        diagnostics.markdown(f"""
 **Kupiec** asks only whether breaches happen at the right *rate*: {k['N']} in
 {k['T']} days observed vs {k['expected_rate']:.1%} expected.
 
