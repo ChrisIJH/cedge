@@ -13,8 +13,8 @@ import plotly.graph_objects as go
 import streamlit as st
 from lib import api
 
-st.set_page_config(page_title="Regime", layout="wide")
-st.title("Regime")
+st.set_page_config(page_title="Cedge - Regime", layout="wide")
+st.title("Cedge - Regime")
 
 st.caption(
     "Macro z-score composite score -> fixed 3-Gaussian mixture posterior "

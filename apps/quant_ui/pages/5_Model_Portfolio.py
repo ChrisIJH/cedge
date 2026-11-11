@@ -12,8 +12,8 @@ import plotly.graph_objects as go
 import streamlit as st
 from lib import api
 
-st.set_page_config(page_title="Model Portfolio", layout="wide")
-st.title("Model Portfolio")
+st.set_page_config(page_title="Cedge - Model Portfolio", layout="wide")
+st.title("Cedge - Model Portfolio")
 st.caption(
     "Model weights → whole-share orders across many accounts. Learning prototype: "
     "1,000 seeded synthetic accounts plus ten hand-made edge cases, valued at real closes."

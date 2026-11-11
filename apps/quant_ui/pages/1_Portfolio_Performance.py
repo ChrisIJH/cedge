@@ -14,8 +14,8 @@ import plotly.graph_objects as go
 import streamlit as st
 from lib import api
 
-st.set_page_config(page_title="Portfolio Performance", layout="wide")
-st.title("Portfolio Performance")
+st.set_page_config(page_title="Cedge - Portfolio Performance", layout="wide")
+st.title("Cedge - Portfolio Performance")
 st.caption(
     "Cumulative return of a long/short book, benchmarked against SPY — "
     "served entirely by the portfolio_performance service."

@@ -20,7 +20,7 @@ from cedge_core.marketdata.portfolios import SqlPortfolioRepository
 from cedge_core.marketdata.prices import load_prices_adjclose
 from cedge_core.marketdata.returns import flag_suspect_moves, to_returns
 from cedge_core.marketdata.weights import portfolio_returns
-from cedge_core.portfolio.stats import drawdown_series
+from cedge_core.portfolio.stats import cumulative_return_series, drawdown_series
 from flask import Flask, jsonify, request
 
 from services.common import (
@@ -124,7 +124,9 @@ def returns():
     if len(series) == 0:
         raise NotFound("no overlapping trading days for these tickers in this range")
 
+    book = pd.Series(series, index=dates)
     beta: Optional[dict] = None
+    market_path: Optional[dict] = None
     if market in panel.columns:
         market_returns = to_returns(panel[[market]], "simple")[market]
         aligned = market_returns.reindex(dates)
@@ -132,11 +134,20 @@ def returns():
             beta = realized_beta(np.asarray(series, float),
                                  aligned.to_numpy(dtype=float))
             beta["market"] = market
+        # The market path starts on the book's first day so both lines share a base.
+        if aligned.notna().all():
+            market_path = {
+                "ticker": market,
+                "cumulative": json_safe(cumulative_return_series(aligned).to_numpy()),
+                "drawdown": json_safe(drawdown_series(aligned).to_numpy()),
+            }
 
     return jsonify({
         "dates": [str(d) for d in dates],
         "returns": json_safe(series),
-        "drawdown": json_safe(drawdown_series(pd.Series(series, index=dates)).to_numpy()),
+        "cumulative": json_safe(cumulative_return_series(book).to_numpy()),
+        "drawdown": json_safe(drawdown_series(book).to_numpy()),
+        "market_path": market_path,
         "data_warnings": flag_suspect_moves(book_returns),
         "n_observations": len(series),
         "gross": exposure["gross"],

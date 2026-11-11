@@ -20,8 +20,8 @@ import streamlit as st
 from lib import api
 from plotly.subplots import make_subplots
 
-st.set_page_config(page_title="VaR Backtest", layout="wide")
-st.title("VaR Backtest")
+st.set_page_config(page_title="Cedge - VaR Backtest", layout="wide")
+st.title("Cedge - VaR Backtest")
 
 PRESETS = {
     "SPY (long-only)": {"SPY": 1.0},
@@ -121,7 +121,7 @@ else:
 st.sidebar.header("Period")
 
 start_date = st.sidebar.date_input("Start", value=url_date("start", date(2015, 1, 1)))
-end_date = st.sidebar.date_input("End", value=url_date("end", date(2024, 12, 31)))
+end_date = st.sidebar.date_input("End", value=url_date("end", date(2026, 11, 3)))
 
 st.sidebar.header("Backtest settings")
 window = st.sidebar.slider("Rolling window", 60, 500, 252, step=10)

@@ -100,11 +100,16 @@ def build_cumulative(policy_rets: dict[str, pd.Series], dates: pd.Series) -> pd.
     return result
 
 
-def drawdown_series(ret_series: pd.Series) -> pd.Series:
-    """Daily decline from the running peak; the peak starts at 1.0 before the first return"""
+
+def cumulative_return_series(ret_series: pd.Series) -> pd.Series:
+    """Compounded return from the start of the series to each day."""
     if len(ret_series) == 0:
         raise ValueError("empty return series")
+    return (1 + ret_series).cumprod() - 1
 
-    wealth = (1 + ret_series).cumprod()
-    peak= wealth.cummax().clip(lower=1.0)
-    return wealth / peak - 1 
+
+def drawdown_series(ret_series: pd.Series) -> pd.Series:
+    """Daily decline from the running peak; the peak starts at 1.0 before the first return."""
+    wealth = 1 + cumulative_return_series(ret_series)
+    peak = wealth.cummax().clip(lower=1.0)
+    return wealth / peak - 1
