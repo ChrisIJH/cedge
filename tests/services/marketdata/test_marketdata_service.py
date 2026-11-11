@@ -172,3 +172,33 @@ def test_model_6040_has_no_data_warnings(client):
         "weights": {"IVV": 0.42, "IJR": 0.08, "EFA": 0.10, "AGG": 0.30, "TIP": 0.10},
         "start_date": "2016-01-01", "end_date": "2026-11-06"})
     assert response.get_json()["data_warnings"] == []
+
+
+def test_book_and_market_paths_share_the_book_dates(client, monkeypatch):
+    import pandas as pd
+
+    dates = pd.date_range("2026-11-02", periods=4, freq="B")
+    panel = pd.DataFrame({"AAA": [100.0, 90.0, 99.0, 108.0],
+                          "SPY": [100.0, 110.0, 99.0, 99.0]}, index=dates)
+    monkeypatch.setattr(_module, "ch_engine", lambda: None)
+    monkeypatch.setattr(_module, "load_prices_adjclose", lambda *a, **k: panel)
+
+    body = client.post("/api/portfolio_returns", json={
+        "weights": {"AAA": 1.0}, "start_date": "2026-11-02", "end_date": "2026-11-05"}).get_json()
+
+    assert body["cumulative"] == pytest.approx([-0.10, -0.01, 0.08])
+    market = body["market_path"]
+    assert market["ticker"] == "SPY"
+    assert market["cumulative"] == pytest.approx([0.10, -0.01, -0.01])
+    assert market["drawdown"] == pytest.approx([0.0, 0.99 / 1.10 - 1, 0.99 / 1.10 - 1])
+    assert len(market["cumulative"]) == len(body["dates"])
+
+
+@pytest.mark.db
+def test_model_6040_and_spy_paths_over_ten_years(client):
+    body = client.post("/api/portfolio_returns", json={
+        "weights": {"IVV": 0.42, "IJR": 0.08, "EFA": 0.10, "AGG": 0.30, "TIP": 0.10},
+        "start_date": "2016-01-01", "end_date": "2026-11-06"}).get_json()
+    assert body["market_path"]["ticker"] == "SPY"
+    assert len(body["market_path"]["cumulative"]) == len(body["cumulative"]) == body["n_observations"]
+    assert min(body["market_path"]["drawdown"]) < min(body["drawdown"])   # SPY fell further in 2020

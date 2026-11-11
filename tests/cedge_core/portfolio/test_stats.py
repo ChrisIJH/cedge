@@ -9,6 +9,7 @@ from cedge_core.portfolio.stats import (
     calc_return_stats,
     calc_stats,
     compute_performance_stats,
+    cumulative_return_series,
     drawdown_series,
 )
 
@@ -138,3 +139,17 @@ class TestDrawdownSeries:
     def test_empty_raises(self):
         with pytest.raises(ValueError):
             drawdown_series(pd.Series([], dtype=float))
+
+class TestCumulativeReturnSeries:
+    def test_known_answer(self):
+        ret = pd.Series([0.10, -0.20, 0.05])
+        assert cumulative_return_series(ret).tolist() == pytest.approx([0.10, 1.10 * 0.80 - 1, 1.10 * 0.80 * 1.05 - 1])
+
+    def test_drawdown_is_measured_on_the_same_wealth_path(self):
+        ret = pd.Series([0.10, -0.20, 0.05])
+        wealth = 1 + cumulative_return_series(ret)
+        assert drawdown_series(ret).tolist() == pytest.approx((wealth / wealth.cummax() - 1).tolist())
+
+    def test_empty_raises(self):
+        with pytest.raises(ValueError):
+            cumulative_return_series(pd.Series([], dtype=float))

@@ -19,8 +19,8 @@ import plotly.graph_objects as go
 import streamlit as st
 from lib import api
 
-st.set_page_config(page_title="Portfolio Optimization", layout="wide")
-st.title("Portfolio Optimization")
+st.set_page_config(page_title="Cedge - Portfolio Optimization", layout="wide")
+st.title("Cedge - Portfolio Optimization")
 
 PRESETS = {
     "SPY (long-only)": {"SPY": 1.0},
