@@ -132,6 +132,12 @@ METHODS = ["parametric", "historic", "fhs"]
 methods = st.sidebar.multiselect("Methods", METHODS,
                                  default=url_choices("method", METHODS, ["parametric", "historic"]),
                                  help="fhs = filtered historical simulation (volatility-adjusted history)")
+
+CHART_RANGES = {"full": "Full period", "12m": "Last 12 months"}
+chart_range = st.sidebar.radio(
+    "Chart range", list(CHART_RANGES.values()), horizontal=True,
+    index=list(CHART_RANGES).index(url_choice("view", list(CHART_RANGES), "full")))
+
 n_boot = st.sidebar.select_slider("Bootstrap draws (Acerbi-Székely)",
                                   [1000, 2000, 3000, 5000], value=3000)
 
@@ -198,19 +204,51 @@ if data_warnings:
                "unadjusted split, not a market move; results that include them can be wrong.\n"
                + lines + more)
 
-# Charts open on the last 12 months; every number above and below uses the whole sample.
+# VaR charts can open on the last 12 months; the performance chart and every number use the whole sample.
 view_end = dates[-1]
 view_start = view_end - pd.DateOffset(months=12)
+zoom = chart_range == CHART_RANGES["12m"]
 
-# drawdown (older marketdata services do not return it)
+# performance: cumulative return over drawdown (older marketdata services do not return them)
+cumulative = returns_body.get("cumulative")
 drawdown = returns_body.get("drawdown")
-if drawdown is not None:
+market_path = returns_body.get("market_path")
+if cumulative is not None and drawdown is not None:
+    cum = pd.Series(cumulative, index=dates)
+    dd = pd.Series(drawdown, index=dates)
+    fig_perf = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.6, 0.4],
+                             vertical_spacing=0.06,
+                             subplot_titles=["Cumulative return", "Drawdown — decline from the running peak"])
+    fig_perf.add_trace(go.Scatter(x=dates, y=cum, mode="lines", name=book_label,
+                                  line=dict(width=1.6, color="#2f6fd0")), row=1, col=1)
+    fig_perf.add_trace(go.Scatter(x=dates, y=dd, mode="lines", fill="tozeroy", name="Drawdown",
+                                  line=dict(width=1.0, color="#d1435b"), showlegend=False), row=2, col=1)
+    if market_path is not None:
+        fig_perf.add_trace(go.Scatter(x=dates, y=market_path["cumulative"], mode="lines",
+                                      name=market_path["ticker"],
+                                      line=dict(width=1.2, color="#8a8f98", dash="dash")), row=1, col=1)
+        fig_perf.add_trace(go.Scatter(x=dates, y=market_path["drawdown"], mode="lines",
+                                      name=f"{market_path['ticker']} drawdown", showlegend=False,
+                                      line=dict(width=1.0, color="#8a8f98", dash="dash")), row=2, col=1)
+    fig_perf.update_layout(height=460, margin=dict(t=40, b=0, l=0, r=0), hovermode="x unified",
+                           legend=dict(orientation="h", yanchor="bottom", y=1.04, x=0))
+    fig_perf.update_yaxes(tickformat=".0%")
+    st.plotly_chart(fig_perf, use_container_width=True)
+
+    summary = (f"Total return {cum.iloc[-1]:+.1%} · deepest drawdown {dd.min():.1%} on "
+               f"{dd.idxmin():%Y-%m-%d} · latest {dd.iloc[-1]:.1%}")
+    if market_path is not None:
+        m_cum = pd.Series(market_path["cumulative"], index=dates)
+        m_dd = pd.Series(market_path["drawdown"], index=dates)
+        summary += (f"  |  {market_path['ticker']}: {m_cum.iloc[-1]:+.1%} · "
+                    f"{m_dd.min():.1%} · latest {m_dd.iloc[-1]:.1%}")
+    st.caption(summary)
+elif drawdown is not None:
     dd = pd.Series(drawdown, index=dates)
     fig_dd = go.Figure(go.Scatter(x=dates, y=dd, mode="lines", fill="tozeroy", name="Drawdown",
                                   line=dict(width=1.0, color="#d1435b")))
     fig_dd.update_layout(height=220, margin=dict(t=30, b=0, l=0, r=0),
                          title=dict(text="Drawdown — decline from the running peak", font=dict(size=14)))
-    fig_dd.update_xaxes(range=[view_start, view_end])
     fig_dd.update_yaxes(tickformat=".0%")
     st.plotly_chart(fig_dd, use_container_width=True)
     st.caption(f"Deepest: {dd.min():.1%} on {dd.idxmin():%Y-%m-%d} · latest: {dd.iloc[-1]:.1%}")
@@ -300,7 +338,9 @@ for tab, cell in zip(tabs, cells):
             fig.update_yaxes(range=[low * 1.15, r_eval[recent].max() * 1.15], row=1, col=1)
 
         st.plotly_chart(fig, use_container_width=True, key=f"chart_{cell_label(cell)}")
-
+        if zoom:
+            st.caption("Showing the last 12 months — double-click the chart for the full period.")
+            
         diagnostics = st.expander("Model diagnostics — statistical tests")
         m3, m4 = diagnostics.columns(2)
         m3.metric("Kupiec", "Reject H\u2080 (Fail)" if k["reject"] else "Fail to reject H\u2080 (Pass)")
