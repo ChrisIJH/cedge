@@ -332,7 +332,7 @@ for tab, cell in zip(tabs, cells):
                                     f"<br>loss line {var[last_hit]:.2%}")
 
         recent = eval_dates >= view_start
-        if recent.any():
+        if zoom and recent.any():
             low = min(r_eval[recent].min(), -es[recent].max())
             fig.update_xaxes(range=[view_start, view_end])
             fig.update_yaxes(range=[low * 1.15, r_eval[recent].max() * 1.15], row=1, col=1)
@@ -340,7 +340,7 @@ for tab, cell in zip(tabs, cells):
         st.plotly_chart(fig, use_container_width=True, key=f"chart_{cell_label(cell)}")
         if zoom:
             st.caption("Showing the last 12 months — double-click the chart for the full period.")
-            
+
         diagnostics = st.expander("Model diagnostics — statistical tests")
         m3, m4 = diagnostics.columns(2)
         m3.metric("Kupiec", "Reject H\u2080 (Fail)" if k["reject"] else "Fail to reject H\u2080 (Pass)")
